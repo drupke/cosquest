@@ -24,19 +24,19 @@
 ;      Rhodes College
 ;      Department of Physics
 ;      2000 N. Parkway
-;      Memphis, TN 38104
+;      Memphis, TN 38104  
 ;      andto94@gmail.com
 ;
 ; :History:
 ;    ChangeHistory::
 ;      2016jul06, ADT, created
+;      2016jul22, DSNR, cosmetic and input changes
 ;
 ; :Copyright:
-;    Copyright (C) 2016 Anthony To
+;    Copyright (C) 2016 Anthony To, David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
-;    published by the Free Software Foundation, either version 3 of
 ;    the License or any later version.
 ;
 ;    This program is distributed in the hope that it will be useful,
@@ -49,7 +49,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-PRO cos_spectraplots, initfile, directoryname, galaxyname
+PRO cos_spectraplots, table, specdir, plotdir, galaxyshortname
 
 
 ;List of emission/absorption lines and their corresponding wavelengths.
@@ -108,70 +108,72 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
     1550.774]
     
   LineLabel = $
-    ['C III $\lambda$977',$
-    'N III $\lambda$990',$
-    'Ly $\beta$1026',$
-    'O VI $\lambda$1032',$
-    'O VI $\lambda$1038',$
-    'Fe III $\lambda$1123',$
-    'Fe II $\lambda$1025',$
-    'P V $\lambda$1128',$
-    'N I $\lambda$1134.2',$
-    'N I $\lambda$1134.4',$
-    'N I $\lambda$1134.9',$
-    'Fe II $\lambda$1143',$
-    'Fe II $\lambda$1145',$
-    'P II $\lambda$1153',$
-    'N IV $\lambda$1169',$
-    'C IV $\lambda$1169',$
-    'C IV $\lambda$1169',$
-    'C III $\lambda$1175.7',$
-    'N III $\lambda$1183',$
-    'N III $\lambda$1185',$
-    'Si II $\lambda$1190',$
-    'Si II $\lambda$1193',$
-    'N I $\lambda$1199.5',$
-    'N I $\lambda$1200.2',$
-    'N I $\lambda$1200.71',$
-    'Si III $\lambda$1207',$
-    'Ly $\alpha$1216',$
-    'N V $\lambda$1239',$
-    'N V $\lambda$1243',$
-    'S II $\lambda$1251',$
-    'S II $\lambda$1254',$
-    'S II $\lambda$1260', $
-    'Si II $\lambda$1260',$
-    'C I $\lambda$1277',$
-    'C I $\lambda$1280',$
-    'O I $\lambda$1302',$
-    'Si II $\lambda$1304',$
-    'Ni II $\lambda$1317',$
-    'C I $\lambda$1329',$
-    'C II $\lambda$1335',$
-    'C II* $\lambda$1335.6',$
-    'C II* $\lambda$1335.7',$
-    'C II $\lambda$1347',$
-    'O I $\lambda$1356',$
-    'Cu II $\lambda$1359',$
-    'Ni II $\lambda$1370',$
-    'Si IV $\lambda$1394',$
-    'Sn II $\lambda$1400',$
-    'Si IV $\lambda$1403',$
-    'C IV $\lambda$1548',$
-    'C IV $\lambda$1551']
+    ['C III 977',$
+    'N III 990',$
+    'Ly$\beta$ 1026',$
+    'O VI 1032',$
+    'O VI 1038',$
+    'Fe III 1123',$
+    'Fe II 1025',$
+    'P V 1128',$
+    'N I 1134.2',$
+    'N I 1134.4',$
+    'N I 1134.9',$
+    'Fe II 1143',$
+    'Fe II 1145',$
+    'P II 1153',$
+    'N IV 1169',$
+    'C IV 1169',$
+    'C IV 1169',$
+    'C III 1176',$
+    'N III 1183',$
+    'N III 1185',$
+    'Si II 1190',$
+    'Si II 1193',$
+    'N I 1199.5',$
+    'N I 1200.2',$
+    'N I 1200.7',$
+    'Si III 1207',$
+    'Ly$\alpha$ 1216',$
+    'N V 1239',$
+    'N V 1243',$
+    'S II 1251',$
+    'S II 1254',$
+    'S II 1260', $
+    'Si II 1260',$
+    'C I 1277',$
+    'C I 1280',$
+    'O I 1302',$
+    'Si II 1304',$
+    'Ni II 1317',$
+    'C I 1329',$
+    'C II 1335',$
+    'C II* 1335.6',$
+    'C II* 1335.7',$
+    'C II 1347',$
+    'O I 1356',$
+    'Cu II 1359',$
+    'Ni II 1370',$
+    'Si IV 1394',$
+    'Sn II 1400',$
+    'Si IV 1403',$
+    'C IV 1548',$
+    'C IV 1551']
     
-;Read galaxy full names   
-  readcol,directoryname+'/'+'Redshifts', galaxyfullnamelist, format='(A)'
 
 ;Read wavelength and flux
-  readcol, directoryname+'/'+galaxyname+'/'+galaxyname+'.txt', wave, flux
+  readcol, specdir+galaxyshortname+'.txt', wave, flux,$
+           /silent
 
-;Read redshift
-  readcol, directoryname+'/'+initfile, galaxynamelist,redshiftlist, SKIPLINE=1,format = '(A,D)'
-  selectionparameter=WHERE(galaxynamelist eq galaxyname)
-  galaxyname=galaxynamelist[selectionparameter[0]]
-  galaxyfullname=galaxyfullnamelist[selectionparameter[0]]
-  zsys=redshiftlist[selectionparameter[0]]
+;Read galaxy full names and redshifts
+  trows=[3,81]
+  name = read_csvcol(table,'A',rows=trows,sep=',',type='string')
+  galaxyshortnamelist = read_csvcol(table,'C',rows=trows,sep=',',type='string')
+  z = read_csvcol(table,'D',rows=trows,sep=',',junk=bad)
+
+  selectionparameter=WHERE(galaxyshortnamelist eq galaxyshortname)
+  galaxyfullname=name[selectionparameter[0]]
+  zsys=z[selectionparameter[0]]
 
 ;Set ASPECT RATIO for plots. Equivalent to (y-range)/(x-range) in data coords.
   aratio=(.11)/(.9)
@@ -187,54 +189,58 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
 
 ;Acquires the range of the wavelength values
   baserange=Max(wave)-Min(wave)
-  
-;Sets window size in inches
-  aspectRatio = FLOAT(!D.Y_VSIZE) / !D.X_VSIZE
+
   xsize=7.5
   ysize=8.5 
-  IF ysize GT 10.5 THEN BEGIN
-    ysize = 10.5
-    xsize = ysize / aspectRatio
-  ENDIF  
-  
   xoffset=(8.5-xsize)/2.0d
   yoffset=(11.0-ysize)/2.0d
-  
+
+; Various plotting defaults  
+  plotchars=0.75
+  labchars=0.5
+  labchart=1
+  x1=0.07
+  x2=0.99
   
 ;Opens a Postscript value to draw plots on
-  cgPS_OPEN,directoryname+'/'+galaxyname+'/'+galaxyname+'spectraplot',/Encapsulated,scale_factor=1, $
-    Charsize=.15,font=-1, /NOMATCH
-  DEVICE, xsize=xsize, ysize=ysize, xoffset=xoffset, yoffset=yoffset, /Inches
-  !Y.MINOR=1
-  !Y.THICK=.8
-  !X.THICK=.8
-  !Y.TICKFORMAT='(F5.1)'
-  
-  cgText, .5,.98,galaxyfullname +','+ 'z='+String(zsys), alignment=.5, Charsize = 1
+  cgPS_OPEN,plotdir+galaxyshortname+'fullspectrum.eps',$
+            /Encapsulated,scale_factor=1,Charsize=.5,/NOMATCH,$
+            xsize=xsize, ysize=ysize, xoffset=xoffset, yoffset=yoffset, /Inches
+;  !Y.MINOR=
+  !Y.THICK=2
+  !X.THICK=2
+  !Y.TICKFORMAT='(F0.1)'
+  !Y.MINOR = 2
+  !X.TICKLEN=0.05
+  !Y.TICKLEN=0.01
+    
+  cgText,.5,.98,galaxyfullname+', '+'z = '+String(zsys,format='(D0.3)'), $
+         alignment=.5, Charsize = 1,/norm
   
 ;Full range plot
-  cgplot, wave, relativeflux, xstyle=1, ystyle=0, yran=yran, $
-    axiscolor='Black',color='Black',$
-    xtit='Observe Wavelength ($\Angstrom$)' ,ytit='F!I$\lambda$!N/10!E-14!N (ergs s!E-1 !Ncm!E-2 !N$\Angstrom$!E-1!N)', $
-    Position = [.05,.86,.95,.97], CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4,/NoErase
-
-
-  
+  cgplot, wave, relativeflux, xstyle=1, ystyle=1, yran=yran,$
+    xtit='Observed Wavelength ($\Angstrom$)',$
+    ytit='F!I$\lambda$!N/10!E-14!N (ergs s!E-1 !Ncm!E-2 !N$\Angstrom$!E-1!N)', $
+    Position = [x1,.86,x2,.97], CHARSIZE=plotchars,thick=1,/NoErase,$
+    xticklen=0.05,yticklen=0.01
+    
 ;Plot legend
-  AL_LEGEND,['Intrinsic','ISM'], $
-    Color=['Red','Blue'], charsize=.3, charthick=.4, $
-    Linestyle=[0,0], Position = [Min(wave)+.04*(Max(wave)-Min(wave)),.9*(Max(relativeflux)-Min(relativeflux))], $
-    bthick=.6,clear=1,background_color='White'
+  AL_LEGEND,['Intrinsic','Galactic'], $
+    Color=['Red','Blue'], charsize=1, charthick=2, $
+    Linestyle=[0,0], $
+    Position = [Min(wave)+.04*(Max(wave)-Min(wave)),$
+                .9*(Max(relativeflux)-Min(relativeflux))], $
+    bthick=.6,clear=1,linsize=0.25
 
 
 ;Plots 6 zoomed-in regions, one after another, along with absorption/emission lines and labels
 
-  cgplot, wave, relativeflux, xstyle=1, ystyle=1, xran=[Min(wave),Min(wave)+(1d/6)*baserange], $
-    axiscolor='Black',color='Black', $
-    yran=[0, $
+  cgplot, wave, relativeflux, xstyle=1, ystyle=1, $
+    xran=[Min(wave),Min(wave)+(1d/6)*baserange], $
+    axiscolor='Black',color='Black',yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(0d/6)*baserange): $
     value_locate(wave,Min(wave)+(1d/6)*baserange)])^2))], $
-    Position = [.05,.715,.95,.825], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [x1,.695,x2,.805], /NoErase, CHARSIZE=plotchars,thick=1
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
     cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
@@ -247,8 +253,8 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
@@ -258,17 +264,18 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
   ENDFOR
 
-  cgplot, wave, relativeflux, xstyle=1, ystyle=1, xran=[Min(wave)+(1d/6)*baserange,Min(wave)+(2d/6)*baserange], $
-    axiscolor='Black',color='Black', $
-    yran=[0, $
+  cgplot, wave, relativeflux, xstyle=1, ystyle=1, $
+    xran=[Min(wave)+(1d/6)*baserange,Min(wave)+(2d/6)*baserange], $
+    axiscolor='Black',color='Black',yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(1d/6)*baserange): $
     value_locate(wave,Min(wave)+(2d/6)*baserange)])^2))], $
-    Position = [.05,.575,.95,.685], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [x1,.56,x2,.67], /NoErase, CHARSIZE=plotchars,$
+    thick=1
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
     cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
@@ -281,8 +288,8 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
@@ -292,17 +299,17 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
   ENDFOR
 
   cgplot, wave, relativeflux, xstyle=1, ystyle=1, xran=[Min(wave)+(2d/6)*baserange,Min(wave)+(3d/6)*baserange], $
-    axiscolor='Black',color='Black', $
-    yran=[0, $
+    axiscolor='Black',color='Black',yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(2d/6)*baserange): $
     value_locate(wave,Min(wave)+(3d/6)*baserange)])^2))], $
-    Position = [.05,.435,.95,.545], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [x1,.425,x2,.535], /NoErase, CHARSIZE=plotchars,$
+    thick=1
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
     cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
@@ -315,8 +322,8 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
@@ -326,17 +333,18 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
   ENDFOR
 
-  cgplot, wave, relativeflux, xstyle=1, ystyle=1, xran=[Min(wave)+(3d/6)*baserange,Min(wave)+(4d/6)*baserange], $
-    axiscolor='Black',color='Black', $
-    yran=[0, $
+  cgplot, wave, relativeflux, xstyle=1, ystyle=1, $
+    xran=[Min(wave)+(3d/6)*baserange,Min(wave)+(4d/6)*baserange], $
+    axiscolor='Black',color='Black', yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(3d/6)*baserange): $
     value_locate(wave,Min(wave)+(4d/6)*baserange)])^2))], $
-    Position = [.05,.295,.95,.405], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [x1,.29,x2,.40], /NoErase, CHARSIZE=plotchars,$
+    thick=1
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
     cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
@@ -349,8 +357,8 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
@@ -360,17 +368,18 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25, $
-        charthick=.4
+        CHARSIZE = labchars, $
+        charthick=labchart
     ENDFOR
   ENDFOR
 
-  cgplot, wave, relativeflux, xstyle=1, ystyle=1, xran=[Min(wave)+(4d/6)*baserange,Min(wave)+(5d/6)*baserange], $
-    axiscolor='Black',color='Black', $
-    yran=[0, $
+  cgplot, wave, relativeflux, xstyle=1, ystyle=1, $
+    xran=[Min(wave)+(4d/6)*baserange,Min(wave)+(5d/6)*baserange], $
+    axiscolor='Black',color='Black', yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(4d/6)*baserange): $
     value_locate(wave,Min(wave)+(5d/6)*baserange)])^2))], $
-    Position = [.05,.155,.95,.265], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [x1,.155,x2,.265], /NoErase, CHARSIZE=plotchars,$
+    thick=1
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
     cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
@@ -383,8 +392,8 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25,$
-        charthick=.4
+        CHARSIZE = labchars,$
+        charthick=labchart
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
@@ -394,17 +403,18 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25,$
-        charthick=.4
+        CHARSIZE = labchars,$
+        charthick=labchart
     ENDFOR
   ENDFOR
   
-  cgplot, wave, relativeflux, xstyle=1, ystyle=1, xran=[Min(wave)+(5d/6)*baserange,Min(wave)+(6d/6)*baserange], $
-    axiscolor='Black',color='Black', $
-    yran=[0, $
+  cgplot, wave, relativeflux, xstyle=1, ystyle=1, $
+    xran=[Min(wave)+(5d/6)*baserange,Min(wave)+(6d/6)*baserange], $
+    axiscolor='Black',color='Black', yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(5d/6)*baserange): $
     value_locate(wave,Min(wave)+(6d/6)*baserange)])^2))], $
-    Position = [.05,.02,.95,.13], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [x1,.02,x2,.13], /NoErase, CHARSIZE=plotchars,$
+    thick=1
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
     cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
@@ -417,8 +427,8 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25,$
-        charthick=.4
+        CHARSIZE = labchars,$
+        charthick=labchart
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
@@ -428,9 +438,9 @@ PRO cos_spectraplots, initfile, directoryname, galaxyname
         LineLabel[I], $
         /Data, $
         ORIENTATION = 90, $
-        CHARSIZE = .25,$
-        charthick=.4
+        CHARSIZE = labchars,$
+        charthick=labchart
     ENDFOR
   ENDFOR
-  CGPS_CLOSE,Allow_Transparent=1
+  CGPS_CLOSE
 END

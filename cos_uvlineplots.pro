@@ -14,10 +14,10 @@
 ; :Params:
 ;    initfile: in, required, type=string
 ;      File that holds a list of galaxies as well as their redshifts.
-;    plotdir: in, required, type=string
+;    fitdir: in, required, type=string
 ;      Location of the data files.
 ;    galaxyshortname: in, required, type=string
-;      Galaxy being plotted, stored in a plotdirectory with the same name.
+;      Galaxy being plotted, stored in a fitdirectory with the same name.
 ;
 ; :Keywords:
 ;    (AT LEAST ONE KEYWORD IS REQUIRED)
@@ -57,7 +57,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-PRO cos_uvlineplots, table, plotdir, galaxyshortname, NV=NV, OVI=OVI
+PRO cos_uvlineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI
 
 ;List of emission/absorption lines and their corresponding wavelengths.
 
@@ -115,59 +115,64 @@ LineWavelength = $
     1550.774]
 
   LineLabel = $
-    ['C III $\lambda$977',$
-    'N III $\lambda$990',$
-    'Ly $\beta$1026',$
-    'O VI $\lambda$1032',$
-    'O VI $\lambda$1038',$
-    'Fe III $\lambda$1123',$
-    'Fe II $\lambda$1025',$
-    'P V $\lambda$1128',$
-    'N I $\lambda$1134.2',$
-    'N I $\lambda$1134.4',$
-    'N I $\lambda$1134.9',$
-    'Fe II $\lambda$1143',$
-    'Fe II $\lambda$1145',$
-    'P II $\lambda$1153',$
-    'N IV $\lambda$1169',$
-    'C IV $\lambda$1169',$
-    'C IV $\lambda$1169',$
-    'C III $\lambda$1175.7',$
-    'N III $\lambda$1183',$
-    'N III $\lambda$1185',$
-    'Si II $\lambda$1190',$
-    'Si II $\lambda$1193',$
-    'N I $\lambda$1199.5',$
-    'N I $\lambda$1200.2',$
-    'N I $\lambda$1200.71',$
-    'Si III $\lambda$1207',$
-    'Ly $\alpha$1216',$
-    'N V $\lambda$1239',$
-    'N V $\lambda$1243',$
-    'S II $\lambda$1251',$
-    'S II $\lambda$1254',$
-    'S II $\lambda$1260', $
-    'Si II $\lambda$1260',$
-    'C I $\lambda$1277',$
-    'C I $\lambda$1280',$
-    'O I $\lambda$1302',$
-    'Si II $\lambda$1304',$
-    'Ni II $\lambda$1317',$
-    'C I $\lambda$1329',$
-    'C II $\lambda$1335',$
-    'C II* $\lambda$1335.6',$
-    'C II* $\lambda$1335.7',$
-    'C II $\lambda$1347',$
-    'O I $\lambda$1356',$
-    'Cu II $\lambda$1359',$
-    'Ni II $\lambda$1370',$
-    'Si IV $\lambda$1394',$
-    'Sn II $\lambda$1400',$
-    'Si IV $\lambda$1403',$
-    'C IV $\lambda$1548',$
-    'C IV $\lambda$1551']
+    ['C III 977',$
+    'N III 990',$
+    'Ly$\beta$ 1026',$
+    'O VI 1032',$
+    'O VI 1038',$
+    'Fe III 1123',$
+    'Fe II 1025',$
+    'P V 1128',$
+    'N I 1134.2',$
+    'N I 1134.4',$
+    'N I 1134.9',$
+    'Fe II 1143',$
+    'Fe II 1145',$
+    'P II 1153',$
+    'N IV 1169',$
+    'C IV 1169',$
+    'C IV 1169',$
+    'C III 1176',$
+    'N III 1183',$
+    'N III 1185',$
+    'Si II 1190',$
+    'Si II 1193',$
+    'N I 1199.5',$
+    'N I 1200.2',$
+    'N I 1200.7',$
+    'Si III 1207',$
+    'Ly$\alpha$ 1216',$
+    'N V 1239',$
+    'N V 1243',$
+    'S II 1251',$
+    'S II 1254',$
+    'S II 1260', $
+    'Si II 1260',$
+    'C I 1277',$
+    'C I 1280',$
+    'O I 1302',$
+    'Si II 1304',$
+    'Ni II 1317',$
+    'C I 1329',$
+    'C II 1335',$
+    'C II* 1335.6',$
+    'C II* 1335.7',$
+    'C II 1347',$
+    'O I 1356',$
+    'Cu II 1359',$
+    'Ni II 1370',$
+    'Si IV 1394',$
+    'Sn II 1400',$
+    'Si IV 1403',$
+    'C IV 1548',$
+    'C IV 1551']
 
-;Read galaxy full names
+;Read galaxy full names and redshifts
+trows=[3,81]
+name = read_csvcol(table,'A',rows=trows,sep=',',type='string')
+galaxyshortnamelist = read_csvcol(table,'C',rows=trows,sep=',',type='string')
+z = read_csvcol(table,'D',rows=trows,sep=',',junk=bad)
+
 readcol,table,name,oname,galaxyshortnamelist,z,format='(A,A,A,D)',$
         skipline=2,/silent,delimiter=',',/preserve
 
@@ -232,7 +237,7 @@ linelab_yfrac=0.2d
   
 ;Opens a Postscript file to draw plots on.
 
-CGPS_OPEN,plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'smallplot.eps',$
+CGPS_OPEN,plotdir+galaxyshortname+'linefit.eps',$
           /ENCAPSULATED, /NOMATCH,default_thick=2,charsize=1.5, xsize=xsize, $
           ysize=ysize, /Inches
 ;!P.Background=cgColor('White')
@@ -247,12 +252,12 @@ print, 'Plotting...'
  
 ;Read params
 IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_data.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_data.txt', $
            wave, modflux, continuum, flux, normalizedflux,format='(D,D,D,D,D)',$
            /silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_dataparam.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_dataparam.txt', $
            xran_1,xran_2, format='(D,D)',/silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_datamodabs.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_datamodabs.txt', $
            nuvabs,elementsize,NUMLINE=1, format='(D,D)',/silent
 
 ;Initializing and fixing variables  
@@ -287,7 +292,7 @@ IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
     
 ;Plots absorption features, unity, and outlines spectra
   FOR M=0, nuvabs-1 DO BEGIN
-    readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+$
+    readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+$
              'OVI_fit_datamodabs.txt',moduvabs,skipline=1+elementsize*M, $
              NUMLINE=elementsize, format='(D)',/silent
     cgoplot,wave,moduvabs,color='Sky Blue',thick=4
@@ -359,12 +364,12 @@ ENDIF
 
 ;Read params
 IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_data.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_data.txt', $
            wave, modflux, continuum, flux, normalizedflux, format='(D,D,D,D,D)',$
            /silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_dataparam.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_dataparam.txt', $
            xran_1,xran_2, format='(D,D)',/silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_datamodabs.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_datamodabs.txt', $
            nuvabs,elementsize,NUMLINE=1, format='(D,D)',/silent
 
 ;Initializing and fixing params  
@@ -399,7 +404,7 @@ IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
     
 ;Plots absorption features, unity, and outlines spectra
   FOR M=0, nuvabs-1 DO BEGIN
-    readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_datamodabs.txt',$
+    readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_datamodabs.txt',$
              moduvabs,skipline=1+elementsize*M, NUMLINE=elementsize, $
              format='(D)',/silent
     cgoplot,wave,moduvabs,color='Sky Blue',thick=4
@@ -471,12 +476,12 @@ ENDIF
 
 ;Read O VI params
 IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_data.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_data.txt', $
            wave, modflux, continuum, flux, normalizedflux, format='(D,D,D,D,D)',$
            /silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_dataparam.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_dataparam.txt', $
            xran_1,xran_2, format='(D,D)',/silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_datamodabs.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_datamodabs.txt', $
            nuvabs,elementsize,NUMLINE=1, format='(D,D)',/silent
 
 ;Initializing and fixing variables  
@@ -511,7 +516,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     
 ;Plots absorption features, unity, and outlines spectra
   FOR M=0, nuvabs-1 DO BEGIN
-    readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+$
+    readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+$
              'OVI_fit_datamodabs.txt',moduvabs,skipline=1+elementsize*M, $
              NUMLINE=elementsize,format='(D)',/silent
     cgoplot,wave,moduvabs,color='Sky Blue',thick=4
@@ -576,12 +581,12 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
   ENDFOR
 
 ;Read N V params  
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_data.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_data.txt', $
            wave, modflux, continuum, flux, normalizedflux, format='(D,D,D,D,D)',$
            /silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_dataparam.txt',$
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_dataparam.txt',$
            xran_1,xran_2,format='(D,D)',/silent
-  readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_datamodabs.txt', $
+  readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'NV_fit_datamodabs.txt', $
            nuvabs,elementsize,NUMLINE=1,format='(D,D)',/silent
 
 ;Initializing and fixing variables  
@@ -613,7 +618,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     
 ;Plots absorption features, unity, and outlines spectra
   FOR M=0, nuvabs-1 DO BEGIN
-    readcol, plotdir+'/'+galaxyshortname+'/'+galaxyshortname+$
+    readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+$
       'NV_fit_datamodabs.txt',moduvabs,skipline=1+elementsize*M, $
       NUMLINE=elementsize,format='(D)',/silent
     cgoplot,wave,moduvabs,color='Sky Blue',thick=4
