@@ -13,7 +13,8 @@ FUNCTION cos_pg1411nv, directoryname, gal, zgal, profileshifts, $
   readcol,directoryname+'/'+gal+'/'+gal+'.txt', wavelength, flux, error, $
           FORMAT='D,D,D',/silent
 
-  ; Finding the index to fit over
+; Finding the index to fit over
+; spline / poly fits
   linefitreg=[1337,1355]
   lineplotreg=[1330,1358]
   contplotreg=[1330,1358]
@@ -39,6 +40,50 @@ FUNCTION cos_pg1411nv, directoryname, gal, zgal, profileshifts, $
   fitargs['reg2'] = {fitord:1}
   fitargs['reg3'] = {argsbkpts:{everyn:100}}
 
+
+; template fit
+;  linefitreg=[1337,1355]
+;  lineplotreg=[1330,1358]
+;  contplotreg=[1280,1370]
+;  contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
+;     VALUE_LOCATE(wavelength,contplotreg[1])]
+;  linefitind=[VALUE_LOCATE(wavelength,linefitreg[0]),$
+;     VALUE_LOCATE(wavelength,linefitreg[1])]
+;  lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
+;     VALUE_LOCATE(wavelength,lineplotreg[1])]
+;;  goodind = [[1330,1333],[1334.8,1335.2],[1336,1337],[1350.5,1353.5],$
+;;             [1354.5,1358]]
+;  goodind = [[1280,1290],[1354.5,1370]]
+;  for i=0,n_elements(goodind[0,*])-1 do begin
+;     newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
+;        VALUE_LOCATE(wavelength,goodind[0,i]),$
+;        START=VALUE_LOCATE(wavelength,goodind[0,i]))
+;     if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
+;  endfor
+;   weight=dblarr(n_elements(error))
+;   tolerance = 1d-80
+;   ibd = where(error^2d LT tolerance)
+;   igd = where(error^2d GE tolerance)
+;   weight[ibd] = 0.0d0
+;   weight[igd] = 1d/error[igd]^2d
+;   contfitreg=[[1280,1370]]
+;   fitfcn=['ifsf_fittemplate']
+;   fitargs=HASH()
+;   parinfo = replicate({value:0d,fixed:0b},4)
+;   parinfo[0].value = 1d-14
+;   fitargs['reg1'] = {templatefcn: 'cos_quasarcomposite',$
+;                      parinfo:parinfo, npar:4}
+;   templatefile = '/Users/drupke/Box Sync/cosquest/spectra/template/'+$
+;                  'harris15_composite.fits'
+;   fxbopen,tlun,templatefile,1
+;   fxbread,tlun,twave,1
+;   fxbread,tlun,tflux,2
+;   fxbclose,tlun
+;   twave *= 1d + zgal[0]
+;   itflux = double(ifsf_interptemp(wavelength,twave,tflux))
+;   itflux /= median(itflux)
+
+
   set_plot,'z'
   cgplot, wavelength, flux, XRAN=contplotreg, $
           YRAN=[-.3*MAX(flux[contplotind[0]:contplotind[1]]),$
@@ -46,7 +91,7 @@ FUNCTION cos_pg1411nv, directoryname, gal, zgal, profileshifts, $
           XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
           xtit='Wavelength ($\Angstrom$)',$
           ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-  continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, $
+  continuum=ifsf_fitmulticont(wavelength, flux, weight, wavelength,itflux, $
                               indextoplot,0,fitreg=contfitreg,$
                               fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4

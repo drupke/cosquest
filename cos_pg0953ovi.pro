@@ -6,16 +6,14 @@ FUNCTION cos_pg0953ovi, directoryname, gal, zgal, profileshifts, profilesig, $
   gal = gal[0]
   ncols = 1
   nrows = 1
-  centcol = 1
-  centrow = 1
   zgal=zgal[0]
   comps=N_ELEMENTS(profileshifts)
   readcol,directoryname+'/'+gal+'/'+gal+'.txt', wavelength, flux, error, $
           FORMAT='D,D,D',/silent
 
-  ; Finding the index to fit over
-  linefitreg=[1268,1277]
-  lineplotreg=[1263,1278]
+; Finding the index to fit over
+  linefitreg=[1268,1283]
+  lineplotreg=[1263,1283]
   contplotreg=[1261,1283]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
                  VALUE_LOCATE(wavelength,contplotreg[1])]
@@ -24,7 +22,7 @@ FUNCTION cos_pg0953ovi, directoryname, gal, zgal, profileshifts, profilesig, $
   lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
               VALUE_LOCATE(wavelength,lineplotreg[1])]
   goodind = [[1261,1264],[1265.5,1268.5],[1269.5,1270.4],[1271,1271.6],$
-             [1272,1272.8],[1273.5,1275.7],[1276.5,1283]]
+             [1272,1272.8],[1273.5,1275.7],[1276.5,1279.7],[1280.3,1283]]
   for i=0,n_elements(goodind[0,*])-1 do begin
      newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
                    VALUE_LOCATE(wavelength,goodind[0,i]),$
@@ -44,7 +42,7 @@ FUNCTION cos_pg0953ovi, directoryname, gal, zgal, profileshifts, profilesig, $
      XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
      xtit='Wavelength ($\Angstrom$)',$
      ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, $
+     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored,ignored, $
      indextoplot,0,fitreg=contfitreg,$
      fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4

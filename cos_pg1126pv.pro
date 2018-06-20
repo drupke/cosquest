@@ -1,8 +1,8 @@
-FUNCTION cos_pg1126nv, directoryname, gal, zgal, profileshifts, $
+FUNCTION cos_pg1126pv, directoryname, gal, zgal, profileshifts, $
                        profilesig, coveringfactor,$
                        opticaldepth
                        
-  fittedline = 'NV'
+  fittedline = 'PV'
   bad = 1d99
   gal = gal[0]
   bin = 2d
@@ -16,19 +16,17 @@ FUNCTION cos_pg1126nv, directoryname, gal, zgal, profileshifts, $
           FORMAT='D,D,D',/silent
 
   ; Finding the index to fit over
-   linefitreg=[1292,1319]
-   lineplotreg=[1292,1319]
-;   lineplotreg=[1295,1308]
-   contplotreg=[1290,1328]
+   linefitreg=[1175,1188]
+   lineplotreg=[1170,1198]
+   contplotreg=[1170,1198]
    contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
                 VALUE_LOCATE(wavelength,contplotreg[1])]
    linefitind=[VALUE_LOCATE(wavelength,linefitreg[0]),$
                VALUE_LOCATE(wavelength,linefitreg[1])]
    lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
                 VALUE_LOCATE(wavelength,lineplotreg[1])]
-   goodind = [[1290,1292],[1296.5,1297.5],[1301.5,1301.7],$
-              [1306.3,1306.7],[1310.6,1310.95],[1314,1315.2],[1315.7,1316.8],$
-              [1318,1328]]
+   goodind = [[1170,1176],[1177,1186],[1187.8,1188.2],[1189.2,1189.8],$
+              [1191.2,1192.7],[1194.5,1198]]
    for i=0,n_elements(goodind[0,*])-1 do begin
       newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
                     VALUE_LOCATE(wavelength,goodind[0,i]),$
@@ -36,18 +34,10 @@ FUNCTION cos_pg1126nv, directoryname, gal, zgal, profileshifts, $
       if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
    endfor
    weight = 1d/error^2
-   contfitreg=[[1290,1314.5],[1314.5,1328]]
+   contfitreg=[[1170,1198]]
    fitfcn=strarr(n_elements(contfitreg[0,*]))+'ifsf_fitspline'
    fitargs=HASH()
    fitargs['reg1'] = {argsbkpts:{everyn:140}}
-   fitargs['reg2'] = {argsbkpts:{everyn:100}}
-;   contfitreg=[[1290,1297],[1297,1306.5],[1306.5,1314.5],[1314.5,1328]]
-;   fitfcn=['ifsf_fitspline','ifsf_fitpoly','ifsf_fitpoly','ifsf_fitspline']
-;   fitargs=HASH()
-;   fitargs['reg1'] = {argsbkpts:{everyn:100}}
-;   fitargs['reg2'] = {fitord:1}
-;   fitargs['reg3'] = {fitord:1}
-;   fitargs['reg4'] = {argsbkpts:{everyn:100}}
     
   set_plot,'z'
   cgplot, wavelength, flux, XRAN=contplotreg, $
@@ -68,8 +58,12 @@ FUNCTION cos_pg1126nv, directoryname, gal, zgal, profileshifts, $
   
   ; Removing problem areas by setting error to something big
   ; so that MPFITFUN ignores it
-  relativeerror[VALUE_LOCATE(wavelength, 1301.8):$
-                VALUE_LOCATE(wavelength,1302.6)] = 1d99
+  relativeerror[VALUE_LOCATE(wavelength,1190):$
+                VALUE_LOCATE(wavelength,1191.5)] = bad
+  relativeerror[VALUE_LOCATE(wavelength,1192.5):$
+                VALUE_LOCATE(wavelength,1194.5)] = bad
+  relativeerror[VALUE_LOCATE(wavelength,1199):$
+                VALUE_LOCATE(wavelength,1201.5)] = bad
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ; Parameters for doublet fit
@@ -77,7 +71,7 @@ FUNCTION cos_pg1126nv, directoryname, gal, zgal, profileshifts, $
 
     ndoubletabs = dblarr(ncols,nrows)+comps
     doubletabs_zinit = dblarr(ncols,nrows,comps) + zgal
-    FOR I = 0, comps-1 DO doubletabs_zinit[*,*,I] += profileshifts[I]/1242.804d
+    FOR I = 0, comps-1 DO doubletabs_zinit[*,*,I] += profileshifts[I]/1128.01d
     doubletabs_siginit = dblarr(ncols,nrows,comps)
     FOR I = 0, N_ELEMENTS(profilesig)-1 DO $
         doubletabs_siginit[*,*,I] += profilesig[I]

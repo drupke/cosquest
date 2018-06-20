@@ -1,44 +1,39 @@
-FUNCTION cos_pg2214nv, directoryname, gal, zgal, profileshifts, $
-                       profilesig, coveringfactor,$
-                       opticaldepth
+FUNCTION cos_pg2233ovi, directoryname, gal, zgal, profileshifts, profilesig, $
+                        coveringfactor,opticaldepth
 
-  fittedline = 'NV'
+  fittedline = 'OVI'
   bad = 1d99
   gal = gal[0]
   ncols = 1
   nrows = 1
-  centcol = 1
-  centrow = 1
   zgal=zgal[0]
   comps=N_ELEMENTS(profileshifts)
   readcol,directoryname+'/'+gal+'/'+gal+'.txt', wavelength, flux, error, $
           FORMAT='D,D,D',/silent
 
-  ;Finding the index to fit over
-  linefitreg=[1306.8,1327]
-  lineplotreg=[1296,1327]
-  contplotreg=[1296,1327]
+  ; Finding the index to fit over
+  linefitreg=[1350,1380]
+  lineplotreg=[1350,1380]
+  contplotreg=[1350,1380]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
-     VALUE_LOCATE(wavelength,contplotreg[1])]
+                 VALUE_LOCATE(wavelength,contplotreg[1])]
   linefitind=[VALUE_LOCATE(wavelength,linefitreg[0]),$
-     VALUE_LOCATE(wavelength,linefitreg[1])]
+              VALUE_LOCATE(wavelength,linefitreg[1])]
   lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
-     VALUE_LOCATE(wavelength,lineplotreg[1])]
-  goodind = [[1296,1296.5],[1297.5,1301],[1306.8,1309.5],[1312,1313.8],$
-             [1322.5,1327]]
+              VALUE_LOCATE(wavelength,lineplotreg[1])]
+  goodind = [[1350,1354],[1355.5,1357],[1358.5,1359],[1360,1360.5],$
+             [1363.5,1366],[1371,1373],[1374.5,1380]]
   for i=0,n_elements(goodind[0,*])-1 do begin
      newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
-        VALUE_LOCATE(wavelength,goodind[0,i]),$
-        START=VALUE_LOCATE(wavelength,goodind[0,i]))
+                   VALUE_LOCATE(wavelength,goodind[0,i]),$
+                   START=VALUE_LOCATE(wavelength,goodind[0,i]))
      if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
   endfor
   weight=1d/error^2
-  contfitreg=[[1296,1312.5],[1312.5,1323.5],[1323.5,1327]]
-  fitfcn=['ifsf_fitspline','ifsf_fitpoly','ifsf_fitpoly']
+  contfitreg=[[1350,1380]]
+  fitfcn=strarr(n_elements(contfitreg[0,*]))+'ifsf_fitspline'
   fitargs=HASH()
-  fitargs['reg1'] = {argsbkpts:{everyn:150}}
-  fitargs['reg2'] = {fitord:2}
-  fitargs['reg3'] = {fitord:2}
+  fitargs['reg1'] = {argsbkpts:{everyn:200}}
 
   set_plot,'z'
   cgplot, wavelength, flux, XRAN=contplotreg, $
@@ -47,7 +42,7 @@ FUNCTION cos_pg2214nv, directoryname, gal, zgal, profileshifts, $
      XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
      xtit='Wavelength ($\Angstrom$)',$
      ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
+  continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
      indextoplot,0,fitreg=contfitreg,$
      fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4
@@ -57,9 +52,6 @@ FUNCTION cos_pg2214nv, directoryname, gal, zgal, profileshifts, $
   relativeflux=flux/continuum
   relativeerror=error/continuum
 
-;; Removing problem areas by setting error to 0 so that MPFITFUN ignores it
-  relativeerror[VALUE_LOCATE(wavelength, 1304.5):$
-     VALUE_LOCATE(wavelength,1306.8)] = 1d99
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ; Parameters for doublet fit
@@ -67,7 +59,7 @@ FUNCTION cos_pg2214nv, directoryname, gal, zgal, profileshifts, $
 
     ndoubletabs = dblarr(ncols,nrows)+comps
     doubletabs_zinit = dblarr(ncols,nrows,comps) + zgal
-    FOR I = 0, comps-1 DO doubletabs_zinit[*,*,I] += profileshifts[I]/1242.804d
+    FOR I = 0, comps-1 DO doubletabs_zinit[*,*,I] += profileshifts[I]/1037.6167d
     doubletabs_siginit = dblarr(ncols,nrows,comps)
     FOR I = 0, N_ELEMENTS(profilesig)-1 DO $
         doubletabs_siginit[*,*,I] += profilesig[I]

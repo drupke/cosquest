@@ -15,7 +15,7 @@ FUNCTION cos_pg1613nv, directoryname, gal, zgal, profileshifts, $
 
   ; Finding the index to fit over
   linefitreg=[1380,1388]
-  lineplotreg=[1377,1392]
+  lineplotreg=[1377,1407]
   contplotreg=[1377,1407]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
      VALUE_LOCATE(wavelength,contplotreg[1])]
@@ -44,7 +44,7 @@ FUNCTION cos_pg1613nv, directoryname, gal, zgal, profileshifts, $
           XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
           xtit='Wavelength ($\Angstrom$)',$
           ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-  continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, $
+  continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
                               indextoplot,0,fitreg=contfitreg,$
                               fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4

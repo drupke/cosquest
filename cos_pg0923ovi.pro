@@ -6,8 +6,6 @@ FUNCTION cos_pg0923ovi, directoryname, gal, zgal, profileshifts, profilesig, $
   gal = gal[0]
   ncols = 1
   nrows = 1
-  centcol = 1
-  centrow = 1
   zgal=zgal[0]
   comps=N_ELEMENTS(profileshifts)
   readcol,directoryname+gal+'/'+gal+'.txt', wavelength, flux, error, $

@@ -4,13 +4,9 @@ FUNCTION cos_pg0844nv, directoryname, gal, zgal, profileshifts, profilesig, $
   fittedline = 'NV'
   bad = 1d99
   gal = gal[0]
-  bin = 2d
   ncols = 1
   nrows = 1
-  centcol = 1
-  centrow = 1
   zgal=zgal[0]
-  outstr = 'rb'+string(bin,format='(I0)')
   comps=N_ELEMENTS(profileshifts)
   readcol,directoryname+gal+'/'+gal+'.txt', wavelength, flux, error, $
           FORMAT='D,D,D',/silent
@@ -45,7 +41,7 @@ FUNCTION cos_pg0844nv, directoryname, gal, zgal, profileshifts, profilesig, $
      XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
      xtit='Wavelength ($\Angstrom$)',$
      ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, $
+     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
      indextoplot,0,fitreg=contfitreg,$
      fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4

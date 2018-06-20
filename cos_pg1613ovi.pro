@@ -14,27 +14,28 @@ FUNCTION cos_pg1613OVI, directoryname, gal, zgal, profileshifts, $
           FORMAT='D,D,D',/silent
 
   linefitreg=[1149.5,1158.5]
-  lineplotreg=[1146,1163]
-  contplotreg=[1146,1163]
+  lineplotreg=[1146,1180]
+   contplotreg=[1136,1180]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
      VALUE_LOCATE(wavelength,contplotreg[1])]
   linefitind=[VALUE_LOCATE(wavelength,linefitreg[0]),$
      VALUE_LOCATE(wavelength,linefitreg[1])]
   lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
      VALUE_LOCATE(wavelength,lineplotreg[1])]
-  goodind = [[1146,1150],[1151,1151.2],[1151.9,1152.4],[1153,1156.5],$
-             [1157.4,1157.8],[1158.2,1163]]
+  goodind = [[1136,1141.5],[1145.5,1150],[1153.5,1156.5],[1158.5,1180]]
   for i=0,n_elements(goodind[0,*])-1 do begin
      newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
         VALUE_LOCATE(wavelength,goodind[0,i]),$
         START=VALUE_LOCATE(wavelength,goodind[0,i]))
      if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
   endfor
-  weight=1d/error^2
-  contfitreg=[[1146,1163]]
-  fitfcn=strarr(n_elements(contfitreg[0,*]))+'ifsf_fitspline'
-  fitargs=HASH()
-  fitargs['reg1'] = {argsbkpts:{everyn:50}}
+   weight=1d/error^2
+   contfitreg=[[1136,1146],[1146,1162],[1162,1180]]
+   fitfcn=['ifsf_fitpoly','ifsf_fitpoly','ifsf_fitspline']
+   fitargs=HASH()
+   fitargs['reg1'] = {fitord:3}
+   fitargs['reg2'] = {fitord:3}
+   fitargs['reg3'] = {argsbkpts:{everyn:50}}
 
   set_plot,'z'
   cgplot, wavelength, flux, XRAN=contplotreg, $
@@ -43,7 +44,7 @@ FUNCTION cos_pg1613OVI, directoryname, gal, zgal, profileshifts, $
      XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
      xtit='Wavelength ($\Angstrom$)',$
      ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, $
+     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
      indextoplot,0,fitreg=contfitreg,$
      fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4
