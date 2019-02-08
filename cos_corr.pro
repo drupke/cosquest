@@ -142,6 +142,9 @@ pro cos_corr
    tabdat['fhardxray_errhi'] = dblarr(ncos,6)+bad
    tabdat['lsoftxray'] = dblarr(ncos,6)+bad
    tabdat['lhardxray'] = dblarr(ncos,6)+bad
+   tabdat['ltotxray'] = dblarr(ncos,6)+bad
+   tabdat['lsoftratxray'] = dblarr(ncos,6)+bad
+   tabdat['lxlbol'] = dblarr(ncos,6)+bad
    j = -1 ; galaxy index
    k = 0 ; zero x-ray component index
    for i=0,nlines-1 do begin
@@ -157,14 +160,20 @@ pro cos_corr
             tabdat['nhxray',j,k] = nhxray[i]
             tabdat['nhxray_errlo',j,k] = nhxray_errlo[i]
             tabdat['nhxray_errhi',j,k] = nhxray_errhi[i]
-            tabdat['fsoftxray',j,k] = fsoftxray[i]
-            tabdat['fsoftxray_errlo',j,k] = fsoftxray_errlo[i]
-            tabdat['fsoftxray_errhi',j,k] = fsoftxray_errhi[i]
             tabdat['fhardxray',j,k] = fhardxray[i]
             tabdat['fhardxray_errlo',j,k] = fhardxray_errlo[i]
             tabdat['fhardxray_errhi',j,k] = fhardxray_errhi[i]
-            tabdat['lsoftxray',j,k] = lsoftxray[i]
-            tabdat['lhardxray',j,k] = lhardxray[i]
+            if fsoftxray[i] ne bad then begin
+               tabdat['lsoftxray',j,k] = lsoftxray[i]
+               tabdat['lhardxray',j,k] = lhardxray[i]
+               tabdat['ltotxray',j,k] = lsoftxray[i] + lhardxray[i]
+               tabdat['lsoftratxray',j,k] = lsoftxray[i] / tabdat['ltotxray',j,k]
+               tabdat['lxlbol',j,k] = $
+                  alog10(tabdat['ltotxray',j,k])+44d - llsun_ergps - tabdat['lbol',j]
+               tabdat['fsoftxray',j,k] = fsoftxray[i]
+               tabdat['fsoftxray_errlo',j,k] = fsoftxray_errlo[i]
+               tabdat['fsoftxray_errhi',j,k] = fsoftxray_errhi[i]
+            endif
             k++
          endif else begin
             tabdat['n_xray',j] = 0 ; record number of x-ray components
@@ -180,14 +189,20 @@ pro cos_corr
                tabdat['nhxray',j,k] = nhxray[i]
                tabdat['nhxray_errlo',j,k] = nhxray_errlo[i]
                tabdat['nhxray_errhi',j,k] = nhxray_errhi[i]
-               tabdat['fsoftxray',j,k] = fsoftxray[i]
-               tabdat['fsoftxray_errlo',j,k] = fsoftxray_errlo[i]
-               tabdat['fsoftxray_errhi',j,k] = fsoftxray_errhi[i]
                tabdat['fhardxray',j,k] = fhardxray[i]
                tabdat['fhardxray_errlo',j,k] = fhardxray_errlo[i]
                tabdat['fhardxray_errhi',j,k] = fhardxray_errhi[i]
-               tabdat['lsoftxray',j,k] = lsoftxray[i]
                tabdat['lhardxray',j,k] = lhardxray[i]
+               if fsoftxray[i] ne bad then begin
+                  tabdat['lsoftxray',j,k] = lsoftxray[i]
+                  tabdat['fsoftxray',j,k] = fsoftxray[i]
+                  tabdat['fsoftxray_errlo',j,k] = fsoftxray_errlo[i]
+                  tabdat['fsoftxray_errhi',j,k] = fsoftxray_errhi[i]
+                  tabdat['ltotxray',j,k] = lsoftxray[i] + lhardxray[i]
+                  tabdat['lsoftratxray',j,k] = lsoftxray[i] / tabdat['ltotxray',j,k]
+                  tabdat['lxlbol',j,k] = $
+                     alog10(tabdat['ltotxray',j,k])+44d - llsun_ergps - tabdat['lbol',j]
+               endif
                k++
             endif else begin
                k = 0 ; re-zero x-ray component index
@@ -355,7 +370,7 @@ tvlct,[[0],[0],[0]],108
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
              charsize=1,default=4,/quiet
    cgplot,tabdat[xlab],tabdat[ylab],xran=xran,yran=yran,$
-          psym=16,symsize=1,color='Black',xtit=xtit,ytit=ytit
+          psym=9,symsize=1.5,color='Black',xtit=xtit,ytit=ytit
 
    cgps_close
 
@@ -379,7 +394,7 @@ tvlct,[[0],[0],[0]],108
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
 ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
 ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=9,symsize=1.5,$
            color='Blue'
 ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
 ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -406,7 +421,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -431,7 +446,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -455,7 +470,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -480,7 +495,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -502,7 +517,7 @@ tvlct,[[0],[0],[0]],108
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
 ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
 ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,ovi[xlab,igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=16,symsize=1,$
+   cgoplot,ovi[xlab,igd_ovi_comp],ovi[ylab,igd_ovi_comp],psym=9,symsize=1.5,$
            color='Blue'
 ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
 ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -527,7 +542,7 @@ tvlct,[[0],[0],[0]],108
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
 ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
 ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=9,symsize=1.5,$
            color='Blue'
 ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
 ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -554,7 +569,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -579,7 +594,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -603,7 +618,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -628,7 +643,7 @@ tvlct,[[0],[0],[0]],108
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
    ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=16,symsize=1,$
+   cgoplot,xrebin[igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=9,symsize=1.5,$
       color='Blue'
    ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
    ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -651,7 +666,7 @@ tvlct,[[0],[0],[0]],108
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
 ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
 ;          err_yhi=nv['sig',igd_nv_comp]*fwhm2sig/2d
-   cgoplot,ovi[xlab,igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=16,symsize=1,$
+   cgoplot,ovi[xlab,igd_ovi_comp],alog10(ovi[ylab,igd_ovi_comp]),psym=9,symsize=1.5,$
            color='Blue'
 ;           err_ylo=ovi['sig',igd_ovi_comp]*fwhm2sig/2d,$
 ;           err_yhi=ovi['sig',igd_ovi_comp]*fwhm2sig/2d
@@ -671,7 +686,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,tabdat[xlab],ovi[ylab],psym=16,symsize=1,$
+   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -691,7 +706,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,tabdat[xlab],ovi[ylab],psym=16,symsize=1,$
+   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -709,7 +724,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,lagn,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,lagn,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,lagn,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -727,7 +742,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,lmbh,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,lmbh,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,lmbh,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -746,7 +761,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,leddrat,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,leddrat,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,leddrat,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -773,7 +788,7 @@ tvlct,[[0],[0],[0]],108
    cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           err_ylow=nverr,err_yhi=nverr
-   cgoplot,tabdat[xlab],ovi[ylab],psym=16,symsize=1,$
+   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
            color='Blue',$
            err_ylow=ovierr,err_yhi=ovierr
    cgoplot,xran,[0,0],/linesty
@@ -798,7 +813,7 @@ tvlct,[[0],[0],[0]],108
    cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           err_ylow=nverr,err_yhi=nverr
-   cgoplot,tabdat[xlab],ovi[ylab],psym=16,symsize=1,$
+   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
            color='Blue',$
            err_ylow=ovierr,err_yhi=ovierr
    cgoplot,xran,[0,0],/linesty
@@ -822,7 +837,7 @@ tvlct,[[0],[0],[0]],108
    cgplot,lagn,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           err_ylow=nverr,err_yhi=nverr
-   cgoplot,lagn,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,lagn,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue',$
            err_ylow=ovierr,err_yhi=ovierr
    cgoplot,xran,[0,0],/linesty
@@ -846,7 +861,7 @@ tvlct,[[0],[0],[0]],108
    cgplot,lmbh,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           err_ylow=nverr,err_yhi=nverr
-   cgoplot,lmbh,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,lmbh,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue',$
            err_ylow=ovierr,err_yhi=ovierr
    cgoplot,xran,[0,0],/linesty
@@ -871,7 +886,7 @@ tvlct,[[0],[0],[0]],108
    cgplot,leddrat,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           err_ylow=nverr,err_yhi=nverr
-   cgoplot,leddrat,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,leddrat,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue',$
            err_ylow=ovierr,err_yhi=ovierr
    cgoplot,xran,[0,0],/linesty
@@ -892,7 +907,8 @@ tvlct,[[0],[0],[0]],108
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
              charsize=1,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,ytit=ytit
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickf='(A1)'
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
          x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
@@ -907,18 +923,52 @@ tvlct,[[0],[0],[0]],108
          cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
                  err_yhi=ynverr
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue',err_ylow=yovierr,$
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
                  err_yhi=yovierr
          cgoplot,x,yovi,/linesty,color='Blue'
          if ctz gt 0 then begin
-            cgoplot,x[iz]-0.05d,ynv[iz],psym=20,symsize=2,color='Red',$
+            cgoplot,x[iz]-0.05d,ynv[iz],psym=13,symsize=2,color='Red',$
                     err_ylow=ynverr[iz],err_yhi=ynverr[iz]
-            cgoplot,x[iz]-0.05d,yovi[iz],psym=20,symsize=2,color='Blue',$
+            cgoplot,x[iz]-0.05d,yovi[iz],psym=13,symsize=2,color='Blue',$
                     err_ylow=ynverr[iz],err_yhi=ynverr[iz]
          endif
       endif
    endfor
    cgoplot,xran,[0,0],/linesty
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,20.8d,1.3d99,'No UV lines'
+   seed = 5d
+   seed2 = 15d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shift = (randomu(seed)+0.5d)
+         shift2 = (randomu(seed2)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         inz = where(x gt 0 AND x ne bad,ctnz)
+         iz = where(x eq 0,ctz)
+         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
+         if ctz gt 0 then x[iz] = 20d + (shift2-0.8d)
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+         if ctz gt 0 then begin
+            cgoplot,x[iz]-0.05d,ynv[iz],psym=13,symsize=2,color='Red',$
+               err_ylow=ynverr[iz],err_yhi=ynverr[iz]
+            cgoplot,x[iz]-0.05d,yovi[iz],psym=13,symsize=2,color='Blue',$
+               err_ylow=ynverr[iz],err_yhi=ynverr[iz]
+         endif
+       endif 
+   endfor
    cgps_close
 
 
@@ -949,16 +999,16 @@ tvlct,[[0],[0],[0]],108
          cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
                  err_yhi=ynverr
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue',err_ylow=yovierr,$
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
                  err_yhi=yovierr
          cgoplot,x,yovi,/linesty,color='Blue'
       endif
    endfor
    cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.1d99,1.9d99],xtit=xtit,$
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
           position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1
-   cgtext,1.06,1.4d99,'No UV lines'
+          yticks=1,ytickf='(A1)'
+   cgtext,1.06,1.3d99,'No UV lines'
    seed = 5d
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
@@ -966,10 +1016,14 @@ tvlct,[[0],[0],[0]],108
          shift = (randomu(seed)+0.5d)
          ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
          yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-         cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue'
-         cgoplot,x,yovi,/linesty,color='Blue'
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
        endif 
    endfor
    cgps_close
@@ -980,7 +1034,7 @@ tvlct,[[0],[0],[0]],108
 
    xlab = 'fsoftxray'
    xtit = 'log[ F(0.5-2 keV) / erg s$\up-1$ cm$\up-2$ ]'
-   xran = [-14,-8]
+   xran = [-14,-10]
 
    nverr = nv['vwtrms']
    ibdnverr = where(nverr eq bad,ctbd)
@@ -1003,16 +1057,16 @@ tvlct,[[0],[0],[0]],108
          cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
                  err_yhi=ynverr
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue',err_ylow=yovierr,$
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
                  err_yhi=yovierr
          cgoplot,x,yovi,/linesty,color='Blue'
       endif
    endfor
    cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.1d99,1.9d99],xtit=xtit,$
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
           position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
           yticks=1,ytickf='(A1)'
-   cgtext,-13.9,1.4d99,'No UV lines'
+   cgtext,-13.9,1.3d99,'No UV lines'
    seed = 5d
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
@@ -1020,10 +1074,14 @@ tvlct,[[0],[0],[0]],108
          shift = (randomu(seed)+0.5d)
          ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
          yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-         cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue'
-         cgoplot,x,yovi,/linesty,color='Blue'
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
        endif 
    endfor
    cgps_close
@@ -1033,7 +1091,7 @@ tvlct,[[0],[0],[0]],108
 
    xlab = 'fhardxray'
    xtit = 'log[ F(2-10 keV) / erg s$\up-1$ cm$\up-2$ ]'
-   xran = [-13,-8]
+   xran = [-13,-9.8]
 
    nverr = nv['vwtrms']
    ibdnverr = where(nverr eq bad,ctbd)
@@ -1056,27 +1114,31 @@ tvlct,[[0],[0],[0]],108
          cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
                  err_yhi=ynverr
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue',err_ylow=yovierr,$
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
                  err_yhi=yovierr
          cgoplot,x,yovi,/linesty,color='Blue'
       endif
    endfor
    cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.1d99,1.9d99],xtit=xtit,$
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
           position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
           yticks=1,ytickf='(A1)'
-   cgtext,-13.9,1.4d99,'No UV lines'
+   cgtext,-12.9,0.6d99,'No UV lines'
    seed = 5d
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]-12d
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
          shift = (randomu(seed)+0.5d)
          ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
          yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-         cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue'
-         cgoplot,x,yovi,/linesty,color='Blue'
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
        endif 
    endfor
    cgps_close
@@ -1086,7 +1148,7 @@ tvlct,[[0],[0],[0]],108
 
    xlab = 'lsoftxray'
    xtit = 'log[ L(0.5-2 keV) / erg s$\up-1$ ]'
-   xran = [42,48]
+   xran = [42,46]
 
    nverr = nv['vwtrms']
    ibdnverr = where(nverr eq bad,ctbd)
@@ -1109,16 +1171,16 @@ tvlct,[[0],[0],[0]],108
          cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
                  err_yhi=ynverr
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue',err_ylow=yovierr,$
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
                  err_yhi=yovierr
          cgoplot,x,yovi,/linesty,color='Blue'
       endif
    endfor
    cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.1d99,1.9d99],xtit=xtit,$
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
           position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
           yticks=1,ytickf='(A1)'
-   cgtext,42.2,1.4d99,'No UV lines'
+   cgtext,42.2,1.3d99,'No UV lines'
    seed = 5d
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
@@ -1126,10 +1188,14 @@ tvlct,[[0],[0],[0]],108
          shift = (randomu(seed)+0.5d)
          ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
          yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-         cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue'
-         cgoplot,x,yovi,/linesty,color='Blue'
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
        endif 
    endfor
    cgps_close
@@ -1162,31 +1228,203 @@ tvlct,[[0],[0],[0]],108
          cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
                  err_yhi=ynverr
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue',err_ylow=yovierr,$
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
                  err_yhi=yovierr
          cgoplot,x,yovi,/linesty,color='Blue'
       endif
    endfor
    cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.1d99,1.9d99],xtit=xtit,$
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
           position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
           yticks=1,ytickf='(A1)'
-   cgtext,42.2,1.4d99,'No UV lines'
+   cgtext,45.4,1.3d99,'No UV lines'
    seed = 5d
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]+44d
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
          shift = (randomu(seed)+0.5d)
          ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
          yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-         cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=16,symsize=1,color='Blue'
-         cgoplot,x,yovi,/linesty,color='Blue'
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
        endif 
    endfor
    cgps_close
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'ltotxray'
+   xtit = 'log[ L(0.5-10 keV) / erg s$\up-1$ ]'
+   xran = [43,47]
+
+   nverr = nv['vwtrms']
+   ibdnverr = where(nverr eq bad,ctbd)
+   if ctbd gt 0 then nverr[ibdnverr] = 0d
+   ovierr = ovi['vwtrms']
+   ibdovierr = where(ovierr eq bad,ctbd)
+   if ctbd gt 0 then ovierr[ibdovierr] = 0d
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
+                 err_yhi=ynverr
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
+                 err_yhi=yovierr
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,46.4,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'lsoftratxray'
+   xtit = 'L(0.5-2 keV) / L(0.5-10 keV)'
+   xran = [0.1,0.9]
+
+   nverr = nv['vwtrms']
+   ibdnverr = where(nverr eq bad,ctbd)
+   if ctbd gt 0 then nverr[ibdnverr] = 0d
+   ovierr = ovi['vwtrms']
+   ibdovierr = where(ovierr eq bad,ctbd)
+   if ctbd gt 0 then ovierr[ibdovierr] = 0d
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
+                 err_yhi=ynverr
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
+                 err_yhi=yovierr
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,0.12,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'lxlbol'
+   xtit = 'log[ L(0.5-10 keV) / L$\downbol$ ]'
+   xran = [-3,0]
+
+   nverr = nv['vwtrms']
+   ibdnverr = where(nverr eq bad,ctbd)
+   if ctbd gt 0 then nverr[ibdnverr] = 0d
+   ovierr = ovi['vwtrms']
+   ibdovierr = where(ovierr eq bad,ctbd)
+   if ctbd gt 0 then ovierr[ibdovierr] = 0d
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
+                 err_yhi=ynverr
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
+                 err_yhi=yovierr
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,-2.9,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1202,7 +1440,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,tabdat[xlab],ovi[ylab],psym=16,symsize=1,$
+   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -1222,7 +1460,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,tabdat[xlab],ovi[ylab],psym=16,symsize=1,$
+   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -1240,7 +1478,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,lagn,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,lagn,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,lagn,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -1258,7 +1496,7 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,lmbh,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,lmbh,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,lmbh,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
    cgps_close
 
@@ -1277,8 +1515,446 @@ tvlct,[[0],[0],[0]],108
              charsize=1,default=4,/quiet
    cgplot,leddrat,nv[ylab],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,leddrat,ovi[ylab],psym=16,symsize=1,$
+   cgoplot,leddrat,ovi[ylab],psym=9,symsize=1.5,$
            color='Blue'
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'nhxray'
+   xtit = 'log[ N(H, X-ray) / cm$\up-2$ ]'
+   xran = [19d,24d]
+
+   ylab = 'weq'
+   ytit = 'log(W$\downeq$ / A)'
+   yran = [-2,2]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         inz = where(x gt 0 AND x ne bad,ctnz)
+         iz = where(x eq 0,ctz)
+         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
+         if ctz gt 0 then x[iz] = 20d
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+         if ctz gt 0 then begin
+            cgoplot,x[iz]-0.07d,ynv[iz],psym=13,symsize=2,color='Red'
+            cgoplot,x[iz]-0.07d,yovi[iz],psym=13,symsize=2,color='Blue'
+         endif
+      endif
+   endfor
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,19.1,1.3d99,'No UV lines'
+   seed = 15d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shifty = (randomu(seed)+0.5d)
+         shiftx = (randomu(seed)-0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shifty
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shifty
+         inz = where(x gt 0 AND x ne bad,ctnz)
+         iz = where(x eq 0,ctz)
+         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
+         if ctz gt 0 then x[iz] = 20d + shiftx
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+            if ctz gt 0 then $
+               cgoplot,x[iz]-0.07d,ynv[iz],psym=13,symsize=2,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+            if ctz gt 0 then $
+               cgoplot,x[iz]-0.07d,yovi[iz],psym=13,symsize=2,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'gamxray'
+   xtit = '$\Gamma$ (X-ray)'
+   xran = [1,3.5]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,1.1,1.3d99,'No UV lines'
+   seed = 15d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shifty = (randomu(seed)+0.5d)
+         shiftx = (randomu(seed)-0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shifty
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shifty
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'fsoftxray'
+   xtit = 'log[ F(0.5-2 keV) / erg s$\up-1$ cm$\up-2$ ]'
+   xran = [-14,-10]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,-13.9,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'fhardxray'
+   xtit = 'log[ F(2-10 keV) / erg s$\up-1$ cm$\up-2$ ]'
+   xran = [-13,-9.8]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,-12.9,0.6d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'lsoftxray'
+   xtit = 'log[ L(0.5-2 keV) / erg s$\up-1$ ]'
+   xran = [42,46]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,42.2,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'lhardxray'
+   xtit = 'log[ L(2-10 keV) / erg s$\up-1$ ]'
+   xran = [43,46]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,45.4,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'ltotxray'
+   xtit = 'log[ L(0.5-10 keV) / erg s$\up-1$ ]'
+   xran = [43,47]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,46.4,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'lsoftratxray'
+   xtit = 'L(0.5-2 keV) / L(0.5-10 keV)'
+   xran = [0.1,0.9]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,0.12,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
+   cgps_close
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   xlab = 'lxlbol'
+   xtit = 'log[ L(0.5-10 keV) / L$\downbol$ ]'
+   xran = [-3,0]
+
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,$
+             charsize=1,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
+          position=[0.12,0.25,0.95,0.95],xtickform='(A1)'
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
+         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
+         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         cgoplot,x,ynv,/linesty,color='Red'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,/linesty,color='Blue'
+      endif
+   endfor
+   cgoplot,xran,[0,0],/linesty
+   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
+          position=[0.12,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
+          yticks=1,ytickf='(A1)'
+   cgtext,-2.9,1.3d99,'No UV lines'
+   seed = 5d
+   for i=0,ncos-1 do begin
+      if tabdat['n_xray',i] ge 1 then begin
+         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
+         shift = (randomu(seed)+0.5d)
+         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
+         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
+         if tabdat['nvstatus',i] ne 'X' then begin
+            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+            cgoplot,x,ynv,/linesty,color='Red'
+         endif
+         if tabdat['ovistatus',i] ne 'X' then begin
+            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+            cgoplot,x,yovi,/linesty,color='Blue'
+         endif
+       endif 
+   endfor
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1333,7 +2009,7 @@ tvlct,[[0],[0],[0]],108
    cgoplot,nv_v50_sort[igd_nv_comp_sort_nar],yrebin[igd_nv_comp_sort_nar],$
           psym=6,symsize=2,color='Red'
    cgoplot,ovi_v50_sort[igd_ovi_comp_sort],yrebin[igd_ovi_comp_sort],$
-           psym=16,symsize=1,color='Blue'
+           psym=9,symsize=1.5,color='Blue'
    cgoplot,ovi_v50_sort[igd_ovi_comp_sort_nar],yrebin[igd_ovi_comp_sort_nar],$
            psym=9,symsize=2,color='Blue'
    j=1
@@ -1345,7 +2021,7 @@ tvlct,[[0],[0],[0]],108
    xran = [0,3]
    cgplot,[0],/nodata,xran=xran,yran=yran,/xsty,/ysty,$
           position=[0.85,0.15,0.99,0.99],/noerase,$
-          ytickf='(A1)',xticks=3,xtickv=[1,2],xtickname=['[NV]','[OVI]']
+          ytickf='(A1)',xticks=3,xtickv=[1,2],xtickname=['NV','OVI']
    cgoplot,intarr(ct_x_nv)+1,yarr[ix_nv],psym=7,color='Red'
    cgoplot,intarr(ct_x_ovi)+2,yarr[ix_ovi],psym=7,color='Blue'
    cgoplot,intarr(ct_u_nv)+1,yarr[iu_nv],psym=11,color='Red'
@@ -1361,14 +2037,14 @@ tvlct,[[0],[0],[0]],108
 
    !P.position=[0,1,0,1]
 
-;   al_legend,['[N V] 1238,1243','[O VI] 1032,1038','not in spectral range',$
+;   al_legend,['NV 1238,1243','O VI 1032,1038','not in spectral range',$
 ;      'affected by geocoronal line or chip gap','undetected'],$
 ;      /norm,spacing=1.5,$
 ;      color=['Red','Blue','Black','Black','Black'],$
 ;      psym=[6,16,7,36,11],symsize=[1.5,1,1,1.5,1],position=[0.555,0.12]
-   al_legend,['[N V] 1238,1243','[O VI] 1032,1038',$
-              '[N V], $\sigma$ < 25 km/s',$
-              '[O VI], $\sigma$ < 25 km/s'],$
+   al_legend,['NV 1238,1243','O VI 1032,1038',$
+              'NV, $\sigma$ < 25 km/s',$
+              'O VI, $\sigma$ < 25 km/s'],$
               /norm,spacing=1.5,$
               color=['Red','Blue','Red','Blue'],$
               psym=[15,16,6,9],symsize=[1,1,2,2],position=[0.2,0.1],margin=.6
@@ -1432,7 +2108,7 @@ tvlct,[[0],[0],[0]],108
    cgoplot,nv_v50_sort[igd_nv_comp_sort_nar],yrebin[igd_nv_comp_sort_nar],$
           psym=6,symsize=2,color='Red'
    cgoplot,ovi_v50_sort[igd_ovi_comp_sort],yrebin[igd_ovi_comp_sort],$
-           psym=16,symsize=1,color='Blue'
+           psym=9,symsize=1.5,color='Blue'
    cgoplot,ovi_v50_sort[igd_ovi_comp_sort_nar],yrebin[igd_ovi_comp_sort_nar],$
            psym=9,symsize=2,color='Blue'
    j=1
@@ -1444,7 +2120,7 @@ tvlct,[[0],[0],[0]],108
    xran = [0,3]
    cgplot,[0],/nodata,xran=xran,yran=yran,/xsty,/ysty,$
           position=[0.85,0.15,0.99,0.99],/noerase,$
-          ytickf='(A1)',xticks=3,xtickv=[1,2],xtickname=['[NV]','[OVI]']
+          ytickf='(A1)',xticks=3,xtickv=[1,2],xtickname=['NV','OVI']
    cgoplot,intarr(ct_x_nv)+1,yarr[ix_nv],psym=7,color='Red'
    cgoplot,intarr(ct_x_ovi)+2,yarr[ix_ovi],psym=7,color='Blue'
    cgoplot,intarr(ct_u_nv)+1,yarr[iu_nv],psym=11,color='Red'
@@ -1460,14 +2136,14 @@ tvlct,[[0],[0],[0]],108
 
    !P.position=[0,1,0,1]
 
-;   al_legend,['[N V] 1238,1243','[O VI] 1032,1038','not in spectral range',$
+;   al_legend,['NV 1238,1243','O VI 1032,1038','not in spectral range',$
 ;      'affected by geocoronal line or chip gap','undetected'],$
 ;      /norm,spacing=1.5,$
 ;      color=['Red','Blue','Black','Black','Black'],$
 ;      psym=[6,16,7,36,11],symsize=[1.5,1,1,1.5,1],position=[0.555,0.12]
-   al_legend,['[N V] 1238,1243','[O VI] 1032,1038',$
-              '[N V], $\sigma$ < 25 km/s',$
-              '[O VI], $\sigma$ < 25 km/s'],$
+   al_legend,['NV 1238,1243','O VI 1032,1038',$
+              'NV, $\sigma$ < 25 km/s',$
+              'O VI, $\sigma$ < 25 km/s'],$
               /norm,spacing=1.5,$
               color=['Red','Blue','Red','Blue'],$
               psym=[15,16,6,9],symsize=[1,1,2,2],position=[0.2,0.1],margin=.6

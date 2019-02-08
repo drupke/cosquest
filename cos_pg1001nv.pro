@@ -13,8 +13,8 @@ FUNCTION cos_pg1001nv, directoryname, gal, zgal, profileshifts, profilesig, $
 
   ; Finding the index to fit over
   linefitreg=[1398,1430]
-  lineplotreg=[1396,1430]
-  contplotreg=[1355,1455]
+  lineplotreg=[1370,1430]
+  contplotreg=[1355,1430]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
                  VALUE_LOCATE(wavelength,contplotreg[1])]
   linefitind=[VALUE_LOCATE(wavelength,linefitreg[0]),$

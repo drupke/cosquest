@@ -6,38 +6,38 @@ pro cos_runplots
    specdir = '/Users/drupke/Box Sync/cosquest/spectra/'
    plotdir = '/Users/drupke/Box Sync/cosquest/plots/spectra/'
 
-   ifsf_fitdoublet,table,fitdir,'izw1','NV'
-   ifsf_fitdoublet,table,fitdir,'pg0804','NV'
-   ifsf_fitdoublet,table,fitdir,'pg0804','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg0844','NV'
-;;   ifsf_fitdoublet,table,fitdir,'pg0923','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg0953','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg1001','OVI'
+;   ifsf_fitdoublet,table,fitdir,'izw1','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg0804','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg0804','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg0844','NV'
+;;;   ifsf_fitdoublet,table,fitdir,'pg0923','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg0953','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg1001','OVI'
    ifsf_fitdoublet,table,fitdir,'pg1001','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1004','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg1116','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg1126','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1126','PV'
-   ifsf_fitdoublet,table,fitdir,'pg1307','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg1351','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1411','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1411','PV'
-   ifsf_fitdoublet,table,fitdir,'pg1440','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1448','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1613','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1613','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg1617','NV'
-   ifsf_fitdoublet,table,fitdir,'pg1617','OVI'
-   ifsf_fitdoublet,table,fitdir,'pg2130','NV'
-   ifsf_fitdoublet,table,fitdir,'pg2214','NV'
-   ifsf_fitdoublet,table,fitdir,'pg2233','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg1004','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg1116','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg1126','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1126','PV'
+;   ifsf_fitdoublet,table,fitdir,'pg1307','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg1351','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1411','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1411','PV'
+;   ifsf_fitdoublet,table,fitdir,'pg1440','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1448','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1613','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1613','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg1617','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg1617','OVI'
+;   ifsf_fitdoublet,table,fitdir,'pg2130','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg2214','NV'
+;   ifsf_fitdoublet,table,fitdir,'pg2233','OVI'
 
 
 ;   cos_lineplots,table,fitdir,plotdir,'izw1',/NV,/lya,velran=[-3d3,1d3]
 ;   cos_lineplots,table,fitdir,plotdir,'pg0804',/NV,/OVI,/lya,velran=[-500,1.5d3]
 ;   cos_lineplots,table,fitdir,plotdir,'pg0844',/NV,/lya,velran=[-1.5d3,500]
 ;   cos_lineplots,table,fitdir,plotdir,'pg0953',/OVI,/lyb,/lyd,velran=[-1.5d3,500]
-;   cos_lineplots,table,fitdir,plotdir,'pg1001',/NV,/OVI,/lya,velran=[-1d4,2d3]
+   cos_lineplots,table,fitdir,plotdir,'pg1001',/NV,/OVI,/lya,velran=[-1.3d4,2d3]
 ;   cos_lineplots,table,fitdir,plotdir,'pg1004',/OVI,/lyb,/lyg,velran=[-1.2d4,0],$
 ;                 ignore=[1210,1220]
 ;   cos_lineplots,table,fitdir,plotdir,'pg1116',/OVI,/lya,/lyb,velran=[-6d3,0]
