@@ -21,8 +21,8 @@ FUNCTION cos_izw1nv, directoryname, gal, zgal, profileshifts, profilesig, $
      VALUE_LOCATE(wavelength,linefitreg[1])]
   lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
      VALUE_LOCATE(wavelength,lineplotreg[1])]
-  goodind = [[1298,1301.5],[1302.5,1303.7],[1307.5,1309],[1311,1312],$
-             [1313.5,1314],[1316,1320]]
+  goodind = [[1298,1301.5],[1302.5,1303.7],[1304.5,1305],[1307.5,1309],[1311,1312.5],$
+             [1313.5,1314],[1315,1316.5],[1318,1320]]
   for i=0,n_elements(goodind[0,*])-1 do begin
      newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
         VALUE_LOCATE(wavelength,goodind[0,i]),$
@@ -30,11 +30,12 @@ FUNCTION cos_izw1nv, directoryname, gal, zgal, profileshifts, profilesig, $
      if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
   endfor
   weight=1d/error^2
-  contfitreg=[[1298,1311.5],[1311.5,1320]]
-  fitfcn=['ifsf_fitpoly','ifsf_fitspline']
+  contfitreg=[[1298,1304.75],[1304.75,1308],[1308,1320]]
+  fitfcn=['ifsf_fitspline','ifsf_fitpoly','ifsf_fitspline']
   fitargs=HASH()
-  fitargs['reg1'] = {fitord:3}
-  fitargs['reg2'] = {argsbkpts:{everyn:100}}
+  fitargs['reg1'] = {argsbkpts:{everyn:100}}
+  fitargs['reg2'] = {fitord: 1}
+  fitargs['reg3'] = {argsbkpts:{everyn:100}}
 
   set_plot,'z'
   cgplot, wavelength, flux, XRAN=contplotreg, $
@@ -44,8 +45,8 @@ FUNCTION cos_izw1nv, directoryname, gal, zgal, profileshifts, profilesig, $
      xtit='Wavelength ($\Angstrom$)',$
      ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
      continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
-     indextoplot,0,fitreg=contfitreg,$
-     fitfcn=fitfcn, fitargs=fitargs)
+                                 indextoplot,0,fitreg=contfitreg,$
+                                 fitfcn=fitfcn, fitargs=fitargs)
   cgoplot, wavelength, continuum, color='Red',thick=4
   img = cgsnapshot(filename=directoryname+'/'+gal+'/'+'/'+gal+fittedline+$
      '_continuum',/jpeg,/nodialog,quality=100)

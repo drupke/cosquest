@@ -45,9 +45,10 @@
 ;      2016jul14, DSNR, cosmetic and input changes
 ;      2016sep07, DSNR, changed line label logic; moved line list to
 ;                       IFSF_LINELIST; added logic to prevent label collisions
+;      2020aug05, DSNR, bug fix
 ;
 ; :Copyright:
-;    Copyright (C) 2016 Anthony To, David S. N. Rupke
+;    Copyright (C) 2016--2020 Anthony To, David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -67,22 +68,26 @@
 PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
                    PV=PV,$
                    lya=lya, lyb=lyb, lyg=lyg, lyd=lyd, velran=velran,$
-                   ignorewave=ignorewave
+                   ignorewave=ignorewave, $
+                   smooth=smooth,velnints=velnints
 
    c_kms = 299792.458d
 
 ;  List of emission/absorption lines and their corresponding wavelengths.
    linelab = 1b
-   lines = ifsf_linelist(!NULL,linelab=linelab,/all)
+   lines = ifsf_linelist(!NULL,linelab=linelab,/all,/vacuum)
 ;  Get lists from hashes
-   LineWavelength_list = lines.values()
-   LineLabel_list = linelab.values()
-;  Convert lists to arrays    
-   LineWavelength = LineWavelength_list.toarray()
-   LineLabel = LineLabel_list.toarray()
+   keys = lines.keys()
+   nlines = n_elements(keys)
+   LineWavelength = dblarr(nlines)
+   LineLabel = strarr(nlines)
+   for i=0,nlines-1 do begin
+      LineWavelength[i] = lines[keys[i]]
+      LineLabel[i] = linelab[keys[i]]
+   endfor
 
 ;  Read galaxy full names and redshifts
-   trows=[3,81]
+   trows=[3,85]
    name = read_csvcol(table,'A',rows=trows,sep=',',type='string')
    galaxyshortnamelist = read_csvcol(table,'C',rows=trows,sep=',',type='string')
    z = read_csvcol(table,'D',rows=trows,sep=',',junk=bad)
@@ -123,7 +128,28 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
    xmar_in = 0.6d
    ymar_in = 0.7d
    nline = keyword_set(NV) + keyword_set(OVI) + keyword_set(PV)
-   if nline eq 2 then begin
+   if nline eq 3 then begin
+      xsize=(xpan_in+xmar_in)*3d
+      ysize=(ypan_in+ymar_in)*2d
+      xmar_frac = xmar_in/xsize
+      xpan_frac = xpan_in/xsize
+      ymar_frac = ymar_in/ysize
+      ypan_frac = ypan_in/ysize
+;     Positions: top left, top right, bottom left, bottom right
+      plotpos=dblarr(4,6)
+      plotpos[*,0]=[xmar_frac,ymar_frac+ypan_frac,$
+                    xmar_frac+xpan_frac,ymar_frac+2d*ypan_frac]
+      plotpos[*,1]=[xmar_frac*2d + xpan_frac,ymar_frac+ypan_frac,$
+                    xmar_frac*2d + xpan_frac*2d,ymar_frac+2d*ypan_frac]
+      plotpos[*,2]=[xmar_frac*3d + xpan_frac*2d,ymar_frac+ypan_frac,$
+                    1d,ymar_frac+2d*ypan_frac]
+      plotpos[*,3]=[xmar_frac,ymar_frac,$
+                    xmar_frac+xpan_frac,ymar_frac+ypan_frac]
+      plotpos[*,4]=[xmar_frac*2d + xpan_frac,ymar_frac,$
+                    xmar_frac*2d + xpan_frac*2d,ymar_frac+ypan_frac]
+      plotpos[*,5]=[xmar_frac*3d + xpan_frac*2d,ymar_frac,$
+                    1d,ymar_frac+ypan_frac]
+   endif else if nline eq 2 then begin
       xsize=(xpan_in+xmar_in)*2d
       ysize=(ypan_in+ymar_in)*2d
       xmar_frac = xmar_in/xsize
@@ -160,7 +186,8 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
    legcharsize = 0.6d
 ;  Title position and sizes
    if nline eq 1 then tit_xpos = xmar_frac+xpan_frac/2d $
-   else tit_xpos = xmar_frac*1.5d +xpan_frac
+   else if nline eq 2 then tit_xpos = xmar_frac*1.5d +xpan_frac $
+   else tit_xpos = xmar_frac*2.5d +xpan_frac*2d
    tit_ypos = 1d - ymar_frac*0.5d
    titcharsize = 1.5d
 ;  Line label character size
@@ -220,13 +247,18 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       endif else igdwave = plotregion
   
 ;     Y-range for the normalized spectra plot
-      yrannormalized=[0,1.05*Max(normalizedflux[igdwave])]
+;      yrannormalized=[0,1.05*Max(normalizedflux[igdwave])]
+      yrannormalized=[0,1.5d]
   
 ;     Y-range for the continuum plot
       yran=[0,1.05*Max(flux[igdwave])]
   
 ;     Normalized plot and legend
-      cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
+      normalizedfluxuse = normalizedflux
+      if keyword_set(smooth) then $
+         if smooth.haskey('PV') then $
+            normalizedfluxuse = smooth(normalizedflux,smooth['PV'])
+      cgplot,wave,normalizedfluxuse,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              xtickformat="(A1)",ytit='Normalized F!I$\lambda$',$
              position=plotpos[*,0], CHARSIZE=1,thick=1, Title= 'P V',/noerase
@@ -262,7 +294,9 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       endif
 
 ;     Plots continuum 
-      if nline eq 2 then postmp = plotpos[*,2] else postmp = plotpos[*,1]
+      if nline eq 3 then postmp = plotpos[*,3] $
+      else if nline eq 2 then postmp = plotpos[*,2] $
+      else postmp = plotpos[*,1]
       cgplot,wave,flux,xran=xran,yran=yran,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              xtit='Observed Wavelength ($\Angstrom$)',$
@@ -297,8 +331,7 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       icol++
 
       readcol,fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_data.txt', $
-               wave, modflux, continuum, flux, normalizedflux,format='(D,D,D,D,D)',$
-               /silent
+               wave, modflux, continuum, flux, normalizedflux,format='(D,D,D,D,D)'
       readcol,fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_dataparam.txt', $
               xran_1,xran_2, format='(D,D)',/silent
       readcol,fitdir+'/'+galaxyshortname+'/'+galaxyshortname+'OVI_fit_datamodabs.txt', $
@@ -331,14 +364,21 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       endif else igdwave = plotregion
   
 ;     Y-range for the normalized spectra plot
-      yrannormalized=[0,1.05*Max(normalizedflux[igdwave])]
-  
+;      yrannormalized=[0,1.05*Max(normalizedflux[igdwave])]
+      yrannormalized=[0,1.5d]
+
 ;     Y-range for the continuum plot
       yran=[0,1.05*Max(flux[igdwave])]
   
 ;     Normalized plot and legend
-      if nline eq 2 and icol eq 2 then postmp = plotpos[*,1] else postmp = plotpos[*,0]
-      cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
+      postmp = plotpos[*,0]
+      if nline eq 3 then postmp = plotpos[*,1] $
+      else if nline eq 2 AND icol eq 2 then postmp = plotpos[*,1]
+      normalizedfluxuse = normalizedflux
+      if keyword_set(smooth) then $
+         if smooth.haskey('OVI') then $
+            normalizedfluxuse = smooth(normalizedflux,smooth['OVI'])
+      cgplot,wave,normalizedfluxuse,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              xtickformat="(A1)",ytit='Normalized F!I$\lambda$',$
              position=postmp, CHARSIZE=1,thick=1, Title= 'O VI',/noerase
@@ -375,7 +415,10 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
 
   
 ;     Plots continuum 
-      if nline eq 2 and icol eq 2 then postmp = plotpos[*,2] else postmp = plotpos[*,1]
+      if nline eq 3 then postmp = plotpos[*,4] $
+      else if nline eq 2 then begin
+         if icol eq 2 AND icol eq 2 then postmp = plotpos[*,3] else postmp = plotpos[*,2]
+      endif else postmp = plotpos[*,1]
       cgplot,wave,flux,xran=xran,yran=yran,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              xtit='Observed Wavelength ($\Angstrom$)',$
@@ -444,14 +487,21 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       endif else igdwave = plotregion
   
 ;     Y-range for the normalized spectra plot
-      yrannormalized=[0,1.05*Max(normalizedflux[igdwave])]
-  
+;      yrannormalized=[0,1.05*Max(normalizedflux[igdwave])]
+      yrannormalized=[0,1.5d]
+
 ;     Y-range for the continuum plot
       yran=[0,1.05*Max(flux[igdwave])]
   
 ;     Normalized plot and legend
-      if nline eq 2 then postmp = plotpos[*,1] else postmp = plotpos[*,0]
-      cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
+      if nline eq 3 then postmp = plotpos[*,2] $
+      else if nline eq 2 then postmp = plotpos[*,1] $
+      else postmp = plotpos[*,0]
+      normalizedfluxuse = normalizedflux
+      if keyword_set(smooth) then $
+         if smooth.haskey('NV') then $
+            normalizedfluxuse = smooth(normalizedflux,smooth['NV'])
+      cgplot,wave,normalizedfluxuse,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              ytit='Normalized F!I$\lambda$',xtickformat="(A1)",$
              position=postmp, CHARSIZE=1,thick=1, Title= 'N V',/noerase
@@ -467,7 +517,7 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
          cgoplot,wave,moduvabs,color='Sky Blue',thick=2
       ENDFOR
 ;      cgoplot,wave,unity,color='Orange',thick=2
-      cgoplot,wave, modflux, color = 'Cyan', thick = 4
+      cgoplot,wave, modflux, color = 'Purple', thick = 4
   
 ;     Plots absorption and emission labels
       index=Where(sort_linesall lt xran[1] AND sort_linesall gt xran[0],ctgd)
@@ -487,7 +537,9 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       endif
 
 ;     Plots continuum  
-      if nline eq 2 then postmp = plotpos[*,3] else postmp = plotpos[*,1]
+      if nline eq 3 then postmp = plotpos[*,5] $
+      else if nline eq 2 then postmp = plotpos[*,3] $
+      else postmp = plotpos[*,1]
       cgplot,wave,flux,xran=xran,yran=yran,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              ytit='F!I$\lambda$ !N/10!E-14!N (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)',$
@@ -568,6 +620,7 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
              ysize=ysize, /Inches
 
    if ~ keyword_set(velran) then velran=[-1d4,2d3]
+   if ~ keyword_set(velnints) then velnints=0
 
    cgText,tit_xpos,tit_ypos,galaxyfullname +', '+ 'z='+String(zsys,format='(D0.3)'), $
           alignment=0.5, Charsize = titcharsize,/norm
@@ -598,17 +651,22 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
 ;      plotreg=[value_locate(vel,velran[0]):value_locate(vel,velran[1])]
 ;      yran=[0,1.05d*Max(normalizedflux[plotreg])]
       yran = [0,1.1d]
-      cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+      normalizedfluxuse = normalizedflux
+      if keyword_set(smooth) then $
+         if smooth.haskey('PV') then $
+            normalizedfluxuse = smooth(normalizedflux,smooth['PV'])
+      cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              ytit='Normalized F!I$\lambda$',xtit='Velocity (km/s)',$
-             position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase
+             position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase,$
+             xticks=velnints
       FOR M=0, nuvabs-1 DO BEGIN
          readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+$
                  linetmp+'_fit_datamodabs.txt',moduvabstmp,skipline=1+elementsize*M, $
                  NUMLINE=elementsize, format='(D)',/silent
          moduvabs[m,*] = moduvabstmp
          cgoplot,vel,moduvabstmp,color='Sky Blue',thick=2
-         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=1,/linesty,$
+         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=2,/linesty,$
                  color='Orange'
       ENDFOR
       cgoplot,vel,modflux, color = 'Purple', thick = 4
@@ -622,13 +680,14 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       vel = c_kms * ((zdiff+1d)^2d - 1d) / $
                         ((zdiff+1d)^2d + 1d)
       yran = [0,1.1d]
-      cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+      cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              xtickformat="(A1)",position=plotpos[*,iplot],$
-             CHARSIZE=1,thick=1,/noerase
+             CHARSIZE=1,thick=1,/noerase,$
+             xticks=velnints
       FOR M=0, nuvabs-1 DO begin
          cgoplot,vel,moduvabs[m,*],color='Sky Blue',thick=2
-         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=1,/linesty,color='Orange'
+         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=2,/linesty,color='Orange'
       ENDFOR
       cgoplot,vel,modflux, color = 'Purple', thick = 4
       cgtext,linelab[red],xlinelab,ylinelab,chars=1d,align=0
@@ -651,6 +710,8 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
               nuvabs,elementsize,NUMLINE=1, format='(D,D)',/silent
       readcol,fitdir+'/'+galaxyshortname+'/'+galaxyshortname+linetmp+$
               'par_best.txt',veluvabs,skip=3,format='(X,X,X,X,D)',/silent
+      modwave_ovi = wave
+      modflux_ovi = modflux
 
 ;     Initializing and fixing variables  
       nuvabs=nuvabs[0]
@@ -664,23 +725,29 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
 ;      plotreg=[value_locate(vel,velran[0]):value_locate(vel,velran[1])]
 ;      yran=[0,1.05d*Max(normalizedflux[plotreg])]
       yran = [0,1.1d]
+      normalizedfluxuse = normalizedflux
+      if keyword_set(smooth) then $
+         if smooth.haskey('OVI') then $
+            normalizedfluxuse = smooth(normalizedflux,smooth['OVI'])
       if keyword_set(PV) then $
-         cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+         cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
                 backg='White',axiscolor='Black',color='Black',$
                 xtickformat="(A1)",$
-                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase $
+                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase,$
+                xticks=velnints $
       else $
-         cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+         cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
                 backg='White',axiscolor='Black',color='Black',$
                 ytit='Normalized F!I$\lambda$',xtit='Velocity (km/s)',$
-                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase
+                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase,$
+                xticks=velnints
        FOR M=0, nuvabs-1 DO BEGIN
          readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+$
                  linetmp+'_fit_datamodabs.txt',moduvabstmp,skipline=1+elementsize*M, $
                  NUMLINE=elementsize, format='(D)',/silent
          moduvabs[m,*] = moduvabstmp
          cgoplot,vel,moduvabstmp,color='Sky Blue',thick=2
-         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=1,/linesty,$
+         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=2,/linesty,$
                  color='Blue'
       ENDFOR
       cgoplot,vel,modflux, color = 'Purple', thick = 4
@@ -694,13 +761,14 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       vel = c_kms * ((zdiff+1d)^2d - 1d) / $
                         ((zdiff+1d)^2d + 1d)
       yran = [0,1.1d]
-      cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+      cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
              backg='White',axiscolor='Black',color='Black',$
              xtickformat="(A1)",position=plotpos[*,iplot],$
-             CHARSIZE=1,thick=1,/noerase
+             CHARSIZE=1,thick=1,/noerase,$
+             xticks=velnints
       FOR M=0, nuvabs-1 DO begin
          cgoplot,vel,moduvabs[m,*],color='Sky Blue',thick=2
-         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=1,/linesty,color='Blue'
+         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=2,/linesty,color='Blue'
       ENDFOR
       cgoplot,vel,modflux, color = 'Purple', thick = 4
       cgtext,linelab[red],xlinelab,ylinelab,chars=1d,align=0
@@ -723,6 +791,8 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
          nuvabs,elementsize,NUMLINE=1, format='(D,D)',/silent
       readcol,fitdir+'/'+galaxyshortname+'/'+galaxyshortname+linetmp+$
          'par_best.txt',veluvabs,skip=3,format='(X,X,X,X,D)',/silent
+      modwave_nv = wave
+      modflux_nv = modflux
 
 ;     Initializing and fixing variables
       nuvabs=nuvabs[0]
@@ -734,23 +804,29 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       vel = c_kms * ((zdiff+1d)^2d - 1d) / $
                     ((zdiff+1d)^2d + 1d)
       yran = [0,1.1d]
+      normalizedfluxuse = normalizedflux
+      if keyword_set(smooth) then $
+         if smooth.haskey('NV') then $
+            normalizedfluxuse = smooth(normalizedflux,smooth['NV'])
       if keyword_set(OVI) OR keyword_set(PV) then $
-         cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+         cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
                 backg='White',axiscolor='Black',color='Black',$
                 xtickformat="(A1)",$
-                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase $
+                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase,$
+                xticks=velnints $
       else $
-         cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+         cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
                 backg='White',axiscolor='Black',color='Black',$
                 ytit='Normalized F!I$\lambda$',xtit='Velocity (km/s)',$
-                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase
+                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase,$
+                xticks=velnints
       FOR M=0, nuvabs-1 DO BEGIN
          readcol, fitdir+'/'+galaxyshortname+'/'+galaxyshortname+$
             linetmp+'_fit_datamodabs.txt',moduvabstmp,skipline=1+elementsize*M, $
             NUMLINE=elementsize, format='(D)',/silent
          moduvabs[m,*] = moduvabstmp
          cgoplot,vel,moduvabstmp,color='Sky Blue',thick=2
-         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=1,/linesty,$
+         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=2,/linesty,$
                  color='Red'
       ENDFOR
       cgoplot,vel,modflux, color = 'Purple', thick = 4
@@ -764,13 +840,14 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
       vel = c_kms * ((zdiff+1d)^2d - 1d) / $
          ((zdiff+1d)^2d + 1d)
       yran = [0,1.1d]
-      cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+      cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
          backg='White',axiscolor='Black',color='Black',$
          xtickformat="(A1)",position=plotpos[*,iplot],$
-         CHARSIZE=1,thick=1,/noerase
+         CHARSIZE=1,thick=1,/noerase,$
+         xticks=velnints
       FOR M=0, nuvabs-1 DO begin
          cgoplot,vel,moduvabs[m,*],color='Sky Blue',thick=2
-         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=1,/linesty,color='Red'
+         cgoplot,[veluvabs[m],veluvabs[m]],yran,thick=2,/linesty,color='Red'
       ENDFOR
       cgoplot,vel,modflux, color = 'Purple', thick = 4
       cgtext,linelab[red],xlinelab,ylinelab,chars=1d,align=0
@@ -783,6 +860,7 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
    
    IF n_elements(lys) gt 0 then begin
       foreach linetmp,lys do begin
+         divmod = 0b
          readcol,fitdir+'/'+galaxyshortname+'/'+galaxyshortname+linetmp+$
                  '_contfit.txt',wave, normalizedflux,$
                  format='(D,X,X,D,X)',/silent
@@ -790,25 +868,85 @@ PRO cos_lineplots, table, fitdir, plotdir, galaxyshortname, NV=NV, OVI=OVI, $
          zdiff = wave/(lines[linetmp]*(1d + zsys)) - 1d
          vel = c_kms * ((zdiff+1d)^2d - 1d) / $
                        ((zdiff+1d)^2d + 1d)
-         yran = [0,1.1d]
-         cgplot,vel,normalizedflux,xran=velran,yran=yran,xstyle=1,ystyle=1,$
-                backg='White',axiscolor='Black',color='Black',$
-                xtickformat="(A1)",$
-                position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase
+         yran = [0d,1.1d]
+         normalizedfluxuse = normalizedflux
+         if keyword_set(smooth) then $
+            if smooth.haskey(linetmp) then $
+               normalizedfluxuse = smooth(normalizedflux,smooth[linetmp])
+         fluxdivmod = normalizedfluxuse
+
+
+         cgplot,vel,normalizedfluxuse,xran=velran,yran=yran,xstyle=1,ystyle=1,$
+            backg='White',axiscolor='Black',color='Black',$
+            xtickformat="(A1)",$
+            position=plotpos[*,iplot], CHARSIZE=1,thick=1,/noerase,$
+            xticks=velnints
 
 
          if keyword_set(PV) then $
             FOR M=0, PVnuvabs-1 DO $
-               cgoplot,[PVveluvabs[m],PVveluvabs[m]],yran,thick=1,/linesty,$
+               cgoplot,[PVveluvabs[m],PVveluvabs[m]],yran,thick=2,/linesty,$
                        color='Orange'
-         if keyword_set(OVI) then $
+         if keyword_set(OVI) then begin
             FOR M=0, OVInuvabs-1 DO $
-               cgoplot,[OVIveluvabs[m],OVIveluvabs[m]],yran,thick=1,/linesty,$
+               cgoplot,[OVIveluvabs[m],OVIveluvabs[m]],yran,thick=2,/linesty,$
                        color='Blue'
-         if keyword_set(NV) then $
+             if linetmp eq 'Lybeta' then begin
+               divmod = 1b
+               tmpmod = fluxdivmod / fluxdivmod
+               ialign_left = where(wave eq modwave_ovi[0],ctalign)
+               if ctalign gt 0 then begin
+                  if n_elements(modflux_ovi) ge n_elements(fluxdivmod) - ialign_left then begin
+                     ialign_right = n_elements(fluxdivmod)-1
+                     jalign_right = ialign_right - ialign_left
+                  endif else begin
+                     ialign_right = ialign_left + n_elements(modflux_ovi)-1
+                     jalign_right = n_elements(modflux_ovi)-1
+                  endelse
+                  fluxdivmod[ialign_left:ialign_right] /= modflux_ovi[0:jalign_right]
+;  Trying to figure out noisy spectrum divided by very small model values ...
+;                  fluxdivmodtmp = fluxdivmod[ialign_left:ialign_right]
+;                  modfluxdiv = modflux_ovi[0:jalign_right]
+;                  inearzero = where(modfluxdiv le 0.05,ctnearzero)
+;                  if ctnearzero gt 0 then begin
+;                     fluxdivmodtmp[inearzero] = 
+;                     fluxdivmod[ialign_left:ialign_right] = fluxdivmodtmp
+;                  endif
+               endif else begin
+                  print,'COS_LINEPLOTS: Cannot align OVI models with Lybeta data.'
+               endelse
+            endif
+         endif
+         if keyword_set(NV) then begin
             FOR M=0, NVnuvabs-1 DO $
-               cgoplot,[NVveluvabs[m],NVveluvabs[m]],yran,thick=1,/linesty,$
+               cgoplot,[NVveluvabs[m],NVveluvabs[m]],yran,thick=2,/linesty,$
                        color='Red'
+             if linetmp eq 'Lyalpha' then begin
+               divmod = 1b
+               tmpmod = fluxdivmod / fluxdivmod
+               ialign_left = where(wave eq modwave_nv[0],ctalign)
+               if ctalign gt 0 then begin
+                  if n_elements(modflux_nv) ge n_elements(fluxdivmod) - ialign_left then begin
+                     ialign_right = n_elements(fluxdivmod)-1
+                     jalign_right = ialign_right - ialign_left
+                  endif else begin
+                     ialign_right = ialign_left + n_elements(modflux_nv)-1
+                     jalign_right = n_elements(modflux_nv)-1
+                  endelse
+                  fluxdivmod[ialign_left:ialign_right] /= modflux_nv[0:jalign_right]
+               endif else begin
+                  print,'COS_LINEPLOTS: Cannot align NV models with Lybeta data.'
+               endelse
+            endif
+         endif
+         
+         if divmod then begin
+            diff = normalizedfluxuse - fluxdivmod
+            idiff = where(diff ne 0d,ctdiff)
+            if ctdiff gt 0 then $
+               cgoplot,vel[idiff],fluxdivmod[idiff],color='Purple'
+         endif
+
          xlinelab=velran[0]+0.02d*(velran[1]-velran[0])
          ylinelab=yran[0]+0.05*(yran[1]-yran[0])
          cgtext,linelab[linetmp],xlinelab,ylinelab,chars=1d,align=0

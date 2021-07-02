@@ -171,7 +171,7 @@ pro cos_pg1004ly
    free_lun,outlun
 
 
-;  Lybeta
+;  Lygamma
    fittedline = 'Lygamma'
    contplotreg=[1155,1450]
    contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$

@@ -15,7 +15,7 @@ FUNCTION cos_pg1307ovi, directoryname, gal, zgal, profileshifts, $
 
 ;  Finding the index to fit over
    linefitreg=[1170,1186]
-   lineplotreg=[1166,1186]
+   lineplotreg=[1175,1186]
    contplotreg=[1166,1188]
    contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
                 VALUE_LOCATE(wavelength,contplotreg[1])]
@@ -23,7 +23,7 @@ FUNCTION cos_pg1307ovi, directoryname, gal, zgal, profileshifts, $
                VALUE_LOCATE(wavelength,linefitreg[1])]
    lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
                 VALUE_LOCATE(wavelength,lineplotreg[1])]
-   goodind = [[1166,1170],[1170,1177.5],[1179,1184.3],[1185.7,1189.5],$
+   goodind = [[1166,1170],[1170,1177.5],[1179,1183.8],[1185.7,1189.5],$
               [1191,1192.6],[1193.7,1200]]
    for i=0,n_elements(goodind[0,*])-1 do begin
       newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
@@ -53,6 +53,10 @@ FUNCTION cos_pg1307ovi, directoryname, gal, zgal, profileshifts, $
   
   relativeflux=flux/continuum
   relativeerror=error/continuum
+
+  ; Removing problem areas by setting error to 0 so that MPFITFUN ignores it
+  relativeerror[VALUE_LOCATE(wavelength,1178):$
+     VALUE_LOCATE(wavelength,1178.4)] = bad
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ; Parameters for doublet fit

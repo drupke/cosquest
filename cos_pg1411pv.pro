@@ -24,7 +24,7 @@ FUNCTION cos_pg1411pv, directoryname, gal, zgal, profileshifts, $
      VALUE_LOCATE(wavelength,linefitreg[1])]
   lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
      VALUE_LOCATE(wavelength,lineplotreg[1])]
-  goodind = [[1202,1205.5],[1207,1209],[1212,1212.3],[1219,1220.2],[1224,1234]]
+  goodind = [[1202,1205.75],[1207,1210.5],[1212.25,1212.55],[1212.85,1214],[1219,1220.2],[1224,1234]]
   for i=0,n_elements(goodind[0,*])-1 do begin
      newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
         VALUE_LOCATE(wavelength,goodind[0,i]),$
@@ -32,10 +32,13 @@ FUNCTION cos_pg1411pv, directoryname, gal, zgal, profileshifts, $
      if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
   endfor
   weight=1d/error^2
-  contfitreg=[1202,1234]
-  fitfcn=['ifsf_fitspline']
+  contfitreg=[[1202,1209],[1209,1213],[1213,1219],[1219,1234]]
+  fitfcn=['ifsf_fitspline','ifsf_fitpoly','ifsf_fitspline','ifsf_fitspline']
   fitargs=HASH()
   fitargs['reg1'] = {argsbkpts:{everyn:100}}
+  fitargs['reg2'] = {fitord: 1}
+  fitargs['reg3'] = {argsbkpts:{everyn:100}}
+  fitargs['reg4'] = {argsbkpts:{everyn:100}}
 
 
 ; template fit
@@ -83,8 +86,8 @@ FUNCTION cos_pg1411pv, directoryname, gal, zgal, profileshifts, $
 
   set_plot,'z'
   cgplot, wavelength, flux, XRAN=contplotreg, $
-          YRAN=[-.3*MAX(flux[contplotind[0]:contplotind[1]]),$
-                1.5*MAX(flux[contplotind[0]:contplotind[1]])],$
+          YRAN=[-.3*MAX(flux[indextoplot]),$
+                1.5*MAX(flux[indextoplot])],$
           XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
           xtit='Wavelength ($\Angstrom$)',$
           ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'

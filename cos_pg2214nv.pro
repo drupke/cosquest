@@ -17,42 +17,62 @@ FUNCTION cos_pg2214nv, directoryname, gal, zgal, profileshifts, $
   ;Finding the index to fit over
   linefitreg=[1306.8,1327]
   lineplotreg=[1296,1327]
-  contplotreg=[1296,1327]
+  contplotreg=[1230,1380]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
      VALUE_LOCATE(wavelength,contplotreg[1])]
   linefitind=[VALUE_LOCATE(wavelength,linefitreg[0]),$
      VALUE_LOCATE(wavelength,linefitreg[1])]
   lineplotind=[VALUE_LOCATE(wavelength,lineplotreg[0]),$
      VALUE_LOCATE(wavelength,lineplotreg[1])]
-  goodind = [[1296,1296.5],[1297.5,1301],[1306.8,1309.5],[1312,1313.8],$
-             [1322.5,1327]]
+  goodind = [[1230,1250],[1255,1259],[1261,1280.5],[1283,1285],[1293.5,1294.5],[1295.5,1296.5],$
+              [1297.5,1301],[1303,1304],[1305,1305.5],[1324,1332],$
+              [1336,1380]]
+;  goodind = [[1296,1296.5],[1297.5,1301],[1306.8,1309.5],[1312,1313.8],$
+;             [1322.5,1327]]
   for i=0,n_elements(goodind[0,*])-1 do begin
      newind=INDGEN(VALUE_LOCATE(wavelength,goodind[1,i])-$
         VALUE_LOCATE(wavelength,goodind[0,i]),$
         START=VALUE_LOCATE(wavelength,goodind[0,i]))
      if i eq 0 then indextoplot = newind else indextoplot = [indextoplot,newind]
   endfor
-  weight=1d/error^2
-  contfitreg=[[1296,1312.5],[1312.5,1323.5],[1323.5,1327]]
-  fitfcn=['ifsf_fitspline','ifsf_fitpoly','ifsf_fitpoly']
-  fitargs=HASH()
-  fitargs['reg1'] = {argsbkpts:{everyn:150}}
-  fitargs['reg2'] = {fitord:2}
-  fitargs['reg3'] = {fitord:2}
+   weight=dblarr(n_elements(error))
+   tolerance = 1d-80
+   ibd = where(error^2d LT tolerance)
+   igd = where(error^2d GE tolerance)
+   weight[ibd] = 0.0d0
+   weight[igd] = 1d/error[igd]^2d
+   contfitreg=[[1260,1340]]
+   fitfcn=['ifsf_fittemplate']
+   fitargs=HASH()
+   parinfo = replicate({value:0d,fixed:0b},4)
+   parinfo[0].value = 1d-14
+   fitargs['reg1'] = {templatefcn: 'cos_quasarcomposite',$
+                      parinfo:parinfo, npar:4}
+   templatefile = '/Users/drupke/Box Sync/cosquest/spectra/template/'+$
+                  'harris15_composite.fits'
+   fxbopen,tlun,templatefile,1
+   fxbread,tlun,twave,1
+   fxbread,tlun,tflux,2
+   fxbclose,tlun
+   twave *= 1d + zgal
+   itflux = double(ifsf_interptemp(wavelength,twave,tflux))
+   itflux /= median(itflux)
 
-  set_plot,'z'
-  cgplot, wavelength, flux, XRAN=contplotreg, $
-     YRAN=[-.3*MAX(flux[contplotind[0]:contplotind[1]]),$
-     1.5*MAX(flux[contplotind[0]:contplotind[1]])],$
-     XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
-     xtit='Wavelength ($\Angstrom$)',$
-     ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
-     continuum=ifsf_fitmulticont(wavelength, flux, weight, ignored, ignored, $
-     indextoplot,0,fitreg=contfitreg,$
-     fitfcn=fitfcn, fitargs=fitargs)
-  cgoplot, wavelength, continuum, color='Red',thick=4
-  img = cgsnapshot(filename=directoryname+'/'+gal+'/'+'/'+gal+fittedline+$
-     '_continuum',/jpeg,/nodialog,quality=100)
+
+   set_plot,'z'
+   cgplot, wavelength, flux, XRAN=contplotreg, $
+           YRAN=[-.3*MAX(flux[contplotind[0]:contplotind[1]]),$
+           1.5*MAX(flux[contplotind[0]:contplotind[1]])],$
+           XSTYLE=1,YSTYLE=1,backg='Black',axiscolor='White',color='White',$
+           xtit='Wavelength ($\Angstrom$)',$
+           ytit='Flux (ergs s$\up-1$ cm$\up-2$ $\Angstrom$$\up-1$)'
+   continuum=$
+      ifsf_fitmulticont(wavelength, flux, weight, wavelength, itflux, $
+                        indextoplot,0,fitreg=contfitreg,$
+                        fitfcn=fitfcn, fitargs=fitargs)
+   cgoplot, wavelength, continuum, color='Red',thick=4
+   img = cgsnapshot(filename=directoryname+'/'+gal+'/'+'/'+gal+fittedline+$
+                    '_continuum',/jpeg,/nodialog,quality=100)
 
   relativeflux=flux/continuum
   relativeerror=error/continuum

@@ -40,9 +40,11 @@
 ;      2016jul22, DSNR, cosmetic and input changes
 ;      2016sep07, DSNR, changed line label logic; moved line list to 
 ;                       IFSF_LINELIST; added logic to prevent label collisions
+;      2020dec18, DSNR, fix for new IFSF_LINELIST logic; added S/N calculation
+;                       and output
 ;
 ; :Copyright:
-;    Copyright (C) 2016 Anthony To, David S. N. Rupke
+;    Copyright (C) 2016--2020 Anthony To, David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -59,23 +61,32 @@
 ;
 ;-
 PRO cos_spectraplots, table, infile, outfile, galaxyshortname,$
-                      ignorewave=ignorewave,twave=twave,tflux=tflux
+                      ignorewave=ignorewave,twave=twave,tflux=tflux,$
+                      medsn=medsn,flam=flam
 
 ;  List of emission/absorption lines and their corresponding wavelengths.
    linelab = 1b
-   lines = ifsf_linelist(!NULL,linelab=linelab,/all)
-;  Get lists from hashes
-   LineWavelength_list = lines.values()
-   LineLabel_list = linelab.values()
-;  Convert lists to arrays    
-   LineWavelength = LineWavelength_list.toarray()
-   LineLabel = LineLabel_list.toarray()
+   lines = ifsf_linelist(!NULL,linelab=linelab,/vacuum,/all,/quiet)
+;  Get lists from hashes. Make sure that values and labels line up.
+   LineWavelength = (lines.values()).toarray()
+   LineLabel = strarr(n_elements(lines))
+   for i=0,n_elements(lines)-1 do $
+      LineLabel[i] = linelab[(lines.keys())[i]]
 
-;Read wavelength and flux
-  readcol, infile, wave, flux, /silent
+; Read wavelength and flux
+  readcol, infile, wave, flux, err, /silent
+  
+  if keyword_set(medsn) then begin
+  ; Get S/N near 1300
+    llow = value_locate(wave,1290d)
+    lhi = value_locate(wave,1310d)
+    medsn = median(flux[llow:lhi]/err[llow:lhi])
+    if llow ne -1 and lhi ne -1 then $
+      print,'Median S/N in range 1290-1310 A: ',medsn,format='(A0,D0.2)'
+  endif
 
-;Read galaxy full names and redshifts
-  trows=[3,81]
+; Read galaxy full names and redshifts
+  trows=[3,85]
   name = read_csvcol(table,'A',rows=trows,sep=',',type='string')
   galaxyshortnamelist = read_csvcol(table,'C',rows=trows,sep=',',type='string')
   z = read_csvcol(table,'D',rows=trows,sep=',',junk=bad)
@@ -83,8 +94,18 @@ PRO cos_spectraplots, table, infile, outfile, galaxyshortname,$
   selectionparameter=WHERE(galaxyshortnamelist eq galaxyshortname)
   galaxyfullname=name[selectionparameter[0]]
   zsys=z[selectionparameter[0]]
+
+  if keyword_set(flam) then begin
+     ; Get flux at rest-frame 1125 A
+     lam1125obs = 1125*(1d + zsys)
+     bandpass = 0.015d * lam1125obs
+     llow = value_locate(wave,lam1125obs - bandpass/2d)
+     lhi = value_locate(wave,lam1125obs + bandpass/2d)
+     flam = mean(flux[llow:lhi])
+  endif
+
   
-;Shifts the absorption/emission waveelngths by the galaxy's redshift
+; Shifts the absorption/emission waveelngths by the galaxy's redshift
   ShiftedLines= LineWavelength*(1+zsys)
   
 ; Avoid line label collisions
