@@ -102,6 +102,16 @@ PRO cos_spectraplots, table, infile, outfile, galaxyshortname,$
      llow = value_locate(wave,lam1125obs - bandpass/2d)
      lhi = value_locate(wave,lam1125obs + bandpass/2d)
      flam = mean(flux[llow:lhi])
+     ; flamavg = mean(flux[llow:lhi])
+     ; what should the error be?
+     ; std error: way too small
+     ;flamerr = sqrt(sum(err[llow:lhi]^2d))/double(lhi-llow+1)
+     ; mean error: much too big
+     ;flamerr = mean(err[llow:lhi])
+     ; include correction for correlation between pixels in res. el.? (5 pix per res el)
+     ; still way too small
+     ;flamerr = sqrt(sum(err[llow:lhi]^2d))/5d/double(lhi-llow+1)
+     ;flam = [flamavg,flamerr]
   endif
 
   

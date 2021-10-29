@@ -12,7 +12,7 @@ FUNCTION cos_izw1nv, directoryname, gal, zgal, profileshifts, profilesig, $
           FORMAT='D,D,D',/silent
 
   ; Finding the index to fit over
-  linefitreg=[1304.5,1311]
+  linefitreg=[1304.5,1320]
   lineplotreg=[1298,1320]
   contplotreg=[1298,1320]
   contplotind=[VALUE_LOCATE(wavelength,contplotreg[0]),$
@@ -75,6 +75,7 @@ FUNCTION cos_izw1nv, directoryname, gal, zgal, profileshifts, profilesig, $
       fitindex:linefitind,$
       fcnfitdoublet: 'ifsf_doubletfcn',$
       fcninitpar: 'ifsf_initdoublet',$
+      argslinelist: {vacuum:1b},$
 ;
       maxncomp: comps,$
 ;
@@ -87,6 +88,8 @@ FUNCTION cos_izw1nv, directoryname, gal, zgal, profileshifts, profilesig, $
       doubletabs_fix: doubletabs_fix,$
 ;
       ndoubletem: 0,$
+      mcniter: 1000, $
+      cfcorr: 0b, $
 ;
       galaxy: gal, $
       zsys_gas: zgal,$

@@ -78,6 +78,7 @@ FUNCTION cos_pg0923ovi, directoryname, gal, zgal, profileshifts, profilesig, $
       fitindex:linefitind,$
       fcnfitdoublet: 'ifsf_doubletfcn',$
       fcninitpar: 'ifsf_initdoublet',$
+      argslinelist: {vacuum:1b},$
 ;
       maxncomp: comps,$
 ;
@@ -90,6 +91,7 @@ FUNCTION cos_pg0923ovi, directoryname, gal, zgal, profileshifts, profilesig, $
       doubletabs_fix: doubletabs_fix,$
 ;
       ndoubletem: 0,$
+         cfcorr: 0b,$
 ;
       galaxy: gal, $
       zsys_gas: zgal,$

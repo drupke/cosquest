@@ -70,11 +70,22 @@ pro cos_corr
    msun_g = 1.989d33
    eddfac = 1.26d38 ; 4 Pi G m_p c / sigma_T, in erg/s/M_sun
 
+   ; linmix_err iterations
+   lm_miniter = 7894L  ; 15787 is 4sigma, and miniter typically gets doubled
+   lm_maxiter = 315740L  ; 20 x 15787
+
+   ; Threshold pval for marking as significant in output regression table
+   tpval = 0.05
+
    qsotab='/Users/drupke/Box Sync/qsos/qsos.csv'
    cosdir='/Users/drupke/Box Sync/cosquest/'
    fitdir=cosdir+'fits/'
    plotdir=cosdir+'plots/correlations/'
    tabdir=cosdir+'tables/'
+   specdir=cosdir+'spectra/'
+
+   linelist = ifsf_linelist(['OVI1031','OVI1037','NV1238','NV1242',$
+      'PV1117','PV1128'],vacuum=1b)
 
 ;  Read table
    rows=[3,85]
@@ -148,31 +159,47 @@ pro cos_corr
       2d*(alog10(lumdist(tabdat['z'],H0=67.8d,Om=0.308d,Lam=0.692d)) - $
       alog10(lumdist(tabdat['z'],H0=69.3d,Om=0.287d,Lam=0.713d)))
 
+;  output table for x-ray quantities for Table 1
+   openw,lun_tmp,tabdir+'tab_table1quants_xray.tex',/get_lun
+   printf,lun_tmp,'#Col 2: log[L(0.5-2keV)/10^44 erg/s]_error_low^error_hi
+   printf,lun_tmp,'#Col 3: log[L(2-10keV)/10^44 erg/s]_error_low^error_hi
    
 ;  X-ray data requires special handling because of multiple measurements
    tabdat['n_xray'] = dblarr(ncos)
    tabdat['gamxray'] = dblarr(ncos,6)+bad
-   tabdat['gamxray_errlo'] = dblarr(ncos,6)+bad
-   tabdat['gamxray_errhi'] = dblarr(ncos,6)+bad
+   tabdat['gamxray_errlo'] = dblarr(ncos,6)
+   tabdat['gamxray_errhi'] = dblarr(ncos,6)
    tabdat['nhxray'] = dblarr(ncos,6)+bad
-   tabdat['nhxray_errlo'] = dblarr(ncos,6)+bad
-   tabdat['nhxray_errhi'] = dblarr(ncos,6)+bad
+   tabdat['nhxray_errlo'] = dblarr(ncos,6)
+   tabdat['nhxray_errhi'] = dblarr(ncos,6)
+   tabdat['nhxray_lim'] = dblarr(ncos,6)+bad
    tabdat['fsoftxray'] = dblarr(ncos,6)+bad
-   tabdat['fsoftxray_errlo'] = dblarr(ncos,6)+bad
-   tabdat['fsoftxray_errhi'] = dblarr(ncos,6)+bad
+   tabdat['fsoftxray_errlo'] = dblarr(ncos,6)
+   tabdat['fsoftxray_errhi'] = dblarr(ncos,6)
    tabdat['fhardxray'] = dblarr(ncos,6)+bad
-   tabdat['fhardxray_errlo'] = dblarr(ncos,6)+bad
-   tabdat['fhardxray_errhi'] = dblarr(ncos,6)+bad
+   tabdat['fhardxray_errlo'] = dblarr(ncos,6)
+   tabdat['fhardxray_errhi'] = dblarr(ncos,6)
    tabdat['lsoftxray'] = dblarr(ncos,6)+bad
+   tabdat['lsoftxray_errlo'] = dblarr(ncos,6)
+   tabdat['lsoftxray_errhi'] = dblarr(ncos,6)
    tabdat['lhardxray'] = dblarr(ncos,6)+bad
+   tabdat['lhardxray_errlo'] = dblarr(ncos,6)
+   tabdat['lhardxray_errhi'] = dblarr(ncos,6)
    tabdat['ltotxray'] = dblarr(ncos,6)+bad
+   tabdat['ltotxray_errlo'] = dblarr(ncos,6)
+   tabdat['ltotxray_errhi'] = dblarr(ncos,6)
    tabdat['lsoftratxray'] = dblarr(ncos,6)+bad
+   tabdat['lsoftratxray_err'] = dblarr(ncos,6)+bad
    tabdat['lxlbol'] = dblarr(ncos,6)+bad
+   tabdat['lxlbol_errlo'] = dblarr(ncos,6)+bad
+   tabdat['lxlbol_errhi'] = dblarr(ncos,6)+bad
    j = -1 ; galaxy index
    k = 0 ; zero x-ray component index
    for i=0,nlines-1 do begin
       if gal[i] ne '' AND cossamp[i] eq 'V18' then begin
          j++ ; increment galaxy index
+         hardstring=''
+         softstring=''
          if gamxray[i] ne bad then begin
             k = 0 ; re-zero x-ray component index
 ;           record first x-ray measurement
@@ -180,59 +207,293 @@ pro cos_corr
             tabdat['gamxray',j,k] = gamxray[i]
             tabdat['gamxray_errlo',j,k] = gamxray_errlo[i]
             tabdat['gamxray_errhi',j,k] = gamxray_errhi[i]
-            tabdat['nhxray',j,k] = nhxray[i]
-            tabdat['nhxray_errlo',j,k] = nhxray_errlo[i]
-            tabdat['nhxray_errhi',j,k] = nhxray_errhi[i]
-            tabdat['fhardxray',j,k] = fhardxray[i]
-            tabdat['fhardxray_errlo',j,k] = fhardxray_errlo[i]
-            tabdat['fhardxray_errhi',j,k] = fhardxray_errhi[i]
-            if fsoftxray[i] ne bad then begin
-               tabdat['lsoftxray',j,k] = lsoftxray[i]
-               tabdat['lhardxray',j,k] = lhardxray[i]
-               tabdat['ltotxray',j,k] = lsoftxray[i] + lhardxray[i]
-               tabdat['lsoftratxray',j,k] = lsoftxray[i] / tabdat['ltotxray',j,k]
-               tabdat['lxlbol',j,k] = $
-                  alog10(tabdat['ltotxray',j,k])+44d - llsun_ergps - tabdat['lbol',j]
-               tabdat['fsoftxray',j,k] = fsoftxray[i]
-               tabdat['fsoftxray_errlo',j,k] = fsoftxray_errlo[i]
-               tabdat['fsoftxray_errhi',j,k] = fsoftxray_errhi[i]
+            if nhxray[i] eq 0d then begin
+                if nhxray_errhi[i] ne 0d then $
+                   tabdat['nhxray_lim',j,k] = alog10(nhxray_errhi[i]) + 22d $
+                else $
+                   tabdat['nhxray_lim',j,k] = 21d
+            endif else begin
+               tabdat['nhxray',j,k] = alog10(nhxray[i])+22d
+               tabdat['nhxray_errlo',j,k] = $
+                  alog10(nhxray[i]) - alog10(nhxray[i] - nhxray_errlo[i])
+               tabdat['nhxray_errhi',j,k] = $
+                  alog10(nhxray[i] + nhxray_errhi[i]) - alog10(nhxray[i])
+            endelse
+            if lsoftxray[i] ne bad then begin
+               tabdat['lsoftxray',j,k] = alog10(lsoftxray[i])+44d
+               softstring = $
+                  string(tabdat['lsoftxray',j,k],format='(D0.2)')
+               if fsoftxray[i] ne bad then begin
+                  tabdat['fsoftxray',j,k] = alog10(fsoftxray[i]) - 12d
+                  if fsoftxray_errlo[i] ne 0d AND $
+                     fsoftxray_errlo[i] ne bad then begin
+                     ; compute flux errors in log space
+                     tabdat['fsoftxray_errlo',j,k] = $
+                        alog10(fsoftxray[i]) - $
+                        alog10(fsoftxray[i] - fsoftxray_errlo[i])
+                     tabdat['fsoftxray_errhi',j,k] = $
+                        alog10(fsoftxray[i] + fsoftxray_errhi[i]) - $
+                        alog10(fsoftxray[i])
+                     fsoftxray_err = (fsoftxray_errlo[i] + fsoftxray_errhi[i])/2d
+                     ; Compute luminosity errors from flux errors
+                     tabdat['lsoftxray_errlo',j,k] = $
+                        alog10(lsoftxray[i]) - $
+                        alog10(lsoftxray[i] - lsoftxray[i] * $
+                        fsoftxray_errlo[i] / fsoftxray[i])
+                     tabdat['lsoftxray_errhi',j,k] = $
+                        alog10(lsoftxray[i] + lsoftxray[i] * $
+                        fsoftxray_errhi[i] / fsoftxray[i]) - $
+                        alog10(lsoftxray[i])
+                     if tabdat['lsoftxray_errlo',j,k] lt 0.0095 OR $
+                        tabdat['lsoftxray_errhi',j,k] lt 0.0095 then $
+                        fstring = '(D0.3,A0,D0.3,A0,D0.3,A0)' $
+                     else fstring = '(D0.2,A0,D0.2,A0,D0.2,A0)'
+                     softstring = $
+                        string(tabdat['lsoftxray',j,k],'$_{-',$
+                        tabdat['lsoftxray_errlo',j,k],'}^{+',$
+                        tabdat['lsoftxray_errhi',j,k],'}$',$
+                        format=fstring)
+                   ; case of no flux errors; assume 10%
+                  endif else begin
+                     tabdat['fsoftxray_errlo',j,k] = $
+                        alog10(fsoftxray[i]) -  alog10(0.9d * fsoftxray[i])
+                     tabdat['fsoftxray_errhi',j,k] = $
+                        alog10(1.1d * fsoftxray[i]) - alog10(fsoftxray[i])
+                     tabdat['lsoftxray_errlo',j,k] = $
+                        alog10(lsoftxray[i]) -  alog10(0.9d * lsoftxray[i])
+                     tabdat['lsoftxray_errhi',j,k] = $
+                        alog10(1.1d * lsoftxray[i]) - alog10(lsoftxray[i])
+                     fsoftxray_err = 0.1d * fsoftxray[i]
+                  endelse
+               endif
             endif
+            if lhardxray[i] ne bad then begin
+               tabdat['lhardxray',j,k] = alog10(lhardxray[i])+44d
+               hardstring = $
+                  string(tabdat['lhardxray',j,k],format='(D0.2)')
+               if fhardxray[i] ne bad then begin
+                  tabdat['fhardxray',j,k] = alog10(fhardxray[i]) - 12d
+                  if fhardxray_errlo[i] ne 0d AND $
+                     fhardxray_errlo[i] ne bad then begin
+                     ; compute flux errors in log space
+                     tabdat['fhardxray_errlo',j,k] = $
+                        alog10(fhardxray[i]) - $
+                        alog10(fhardxray[i] - fhardxray_errlo[i])
+                     tabdat['fhardxray_errhi',j,k] = $
+                        alog10(fhardxray[i] + fhardxray_errhi[i]) - $
+                        alog10(fhardxray[i])
+                     tabdat['lhardxray_errlo',j,k] = $
+                        alog10(lhardxray[i]) - $
+                        alog10(lhardxray[i] - lhardxray[i] * $
+                        fhardxray_errlo[i] / fhardxray[i])
+                     fhardxray_err = (fhardxray_errlo[i] + fhardxray_errhi[i])/2d
+                     ; Compute luminosity errors from flux errors
+                     tabdat['lhardxray_errhi',j,k] = $
+                        alog10(lhardxray[i] + lhardxray[i] * $
+                        fhardxray_errhi[i] / fhardxray[i]) - $
+                        alog10(lhardxray[i])
+                     if tabdat['lhardxray_errlo',j,k] lt 0.0095 OR $
+                        tabdat['lhardxray_errhi',j,k] lt 0.0095 then $
+                        fstring = '(D0.3,A0,D0.3,A0,D0.3,A0)' $
+                     else fstring = '(D0.2,A0,D0.2,A0,D0.2,A0)'
+                     hardstring = $
+                        string(tabdat['lhardxray',j,k],'$_{-',$
+                        tabdat['lhardxray_errlo',j,k],'}^{+',$
+                        tabdat['lhardxray_errhi',j,k],'}$',$
+                        format=fstring)
+                   ; case of no flux errors; assume 10%
+                  endif else begin
+                     tabdat['fhardxray_errlo',j,k] = $
+                        alog10(fhardxray[i]) -  alog10(0.9d * fhardxray[i])
+                     tabdat['fhardxray_errhi',j,k] = $
+                        alog10(1.1d * fhardxray[i]) - alog10(fhardxray[i])
+                     tabdat['lhardxray_errlo',j,k] = $
+                        alog10(lhardxray[i]) -  alog10(0.9d * lhardxray[i])
+                     tabdat['lhardxray_errhi',j,k] = $
+                        alog10(1.1d * lhardxray[i]) - alog10(lhardxray[i])
+                     fhardxray_err = 0.1d * fhardxray[i]
+                  endelse
+               endif
+            endif
+            if lhardxray[i] ne bad AND lsoftxray[i] ne bad AND $
+               lsoftxray[i] ne 0d then begin
+               tabdat['ltotxray',j,k] = alog10(lsoftxray[i] + lhardxray[i])+44d
+               totxray = lsoftxray[i] + lhardxray[i]
+               tabdat['ltotxray_errlo',j,k] = $
+                  sqrt(tabdat['lsoftxray_errlo',j,k]^2d + $
+                     tabdat['lhardxray_errlo',j,k]^2d)
+               tabdat['ltotxray_errhi',j,k] = $
+                  sqrt(tabdat['lsoftxray_errhi',j,k]^2d + $
+                     tabdat['lhardxray_errhi',j,k]^2d)
+               tabdat['lsoftratxray',j,k] = $
+                  tabdat['lsoftxray',j,k] - tabdat['ltotxray',j,k]
+               tabdat['lsoftratxray_err',j,k] = $
+                     sqrt(fsoftxray[i]^2d * fhardxray_err^2d + $
+                     fhardxray[i]^2d * fsoftxray_err^2d) / $
+                     (fsoftxray[i]+fhardxray[i])^2d
+               tabdat['lxlbol',j,k] = tabdat['ltotxray',j,k] - $
+                  llsun_ergps - tabdat['lbol',j]
+               tabdat['lxlbol_errlo',j,k] = tabdat['ltotxray_errlo',j,k]
+               tabdat['lxlbol_errhi',j,k] = tabdat['ltotxray_errhi',j,k]
+            endif
+            printf,lun_tmp,gal[i],softstring,hardstring,$
+                format='(A-12,2A27)'
             k++
          endif else begin
             tabdat['n_xray',j] = 0 ; record number of x-ray components
             k = 0 ; re-zero x-ray component index
          endelse
-      endif else begin
+      endif else if gal[i] eq '' then begin
          if k gt 0 then begin
+            hardstring=''
+            softstring=''
             if gamxray[i] ne bad then begin
                tabdat['n_xray',j] = k+1
                tabdat['gamxray',j,k] = gamxray[i]
                tabdat['gamxray_errlo',j,k] = gamxray_errlo[i]
                tabdat['gamxray_errhi',j,k] = gamxray_errhi[i]
-               tabdat['nhxray',j,k] = nhxray[i]
-               tabdat['nhxray_errlo',j,k] = nhxray_errlo[i]
-               tabdat['nhxray_errhi',j,k] = nhxray_errhi[i]
-               tabdat['fhardxray',j,k] = fhardxray[i]
-               tabdat['fhardxray_errlo',j,k] = fhardxray_errlo[i]
-               tabdat['fhardxray_errhi',j,k] = fhardxray_errhi[i]
-               tabdat['lhardxray',j,k] = lhardxray[i]
-               if fsoftxray[i] ne bad then begin
-                  tabdat['lsoftxray',j,k] = lsoftxray[i]
-                  tabdat['fsoftxray',j,k] = fsoftxray[i]
-                  tabdat['fsoftxray_errlo',j,k] = fsoftxray_errlo[i]
-                  tabdat['fsoftxray_errhi',j,k] = fsoftxray_errhi[i]
-                  tabdat['ltotxray',j,k] = lsoftxray[i] + lhardxray[i]
-                  tabdat['lsoftratxray',j,k] = lsoftxray[i] / tabdat['ltotxray',j,k]
-                  tabdat['lxlbol',j,k] = $
-                     alog10(tabdat['ltotxray',j,k])+44d - llsun_ergps - tabdat['lbol',j]
+               if nhxray[i] eq 0d then begin
+                  if nhxray_errhi[i] ne 0d then $
+                     tabdat['nhxray_lim',j,k] = alog10(nhxray_errhi[i]) + 22d $
+                  else $
+                     tabdat['nhxray_lim',j,k] = 21d
+               endif else begin
+                  tabdat['nhxray',j,k] = alog10(nhxray[i])+22d
+                  tabdat['nhxray_errlo',j,k] = $
+                     alog10(nhxray[i]) - alog10(nhxray[i] - nhxray_errlo[i])
+                  tabdat['nhxray_errhi',j,k] = $
+                     alog10(nhxray[i] + nhxray_errhi[i]) - alog10(nhxray[i])
+               endelse
+               if lsoftxray[i] ne bad then begin
+                  tabdat['lsoftxray',j,k] = alog10(lsoftxray[i])+44d
+                  softstring = $
+                     string(tabdat['lsoftxray',j,k],format='(D0.2)')
+                  if fsoftxray[i] ne bad then begin
+                     tabdat['fsoftxray',j,k] = alog10(fsoftxray[i]) - 12d
+                     if fsoftxray_errlo[i] ne 0d AND $
+                        fsoftxray_errlo[i] ne bad then begin
+                        ; compute flux errors in log space
+                        tabdat['fsoftxray_errlo',j,k] = $
+                           alog10(fsoftxray[i]) - $
+                           alog10(fsoftxray[i] - fsoftxray_errlo[i])
+                        tabdat['fsoftxray_errhi',j,k] = $
+                           alog10(fsoftxray[i] + fsoftxray_errhi[i]) - $
+                           alog10(fsoftxray[i])
+                        fsoftxray_err = (fsoftxray_errlo[i] + fsoftxray_errhi[i])/2d
+                        ; Compute luminosity errors from flux errors
+                        tabdat['lsoftxray_errlo',j,k] = $
+                           alog10(lsoftxray[i]) - $
+                           alog10(lsoftxray[i] - lsoftxray[i] * $
+                           fsoftxray_errlo[i] / fsoftxray[i])
+                        tabdat['lsoftxray_errhi',j,k] = $
+                           alog10(lsoftxray[i] + lsoftxray[i] * $
+                           fsoftxray_errhi[i] / fsoftxray[i]) - $
+                           alog10(lsoftxray[i])
+                        if tabdat['lsoftxray_errlo',j,k] lt 0.0095 OR $
+                           tabdat['lsoftxray_errhi',j,k] lt 0.0095 then $
+                           fstring = '(D0.3,A0,D0.3,A0,D0.3,A0)' $
+                        else fstring ='(D0.2,A0,D0.2,A0,D0.2,A0)'
+                        softstring = $
+                           string(tabdat['lsoftxray',j,k],'$_{-',$
+                           tabdat['lsoftxray_errlo',j,k],'}^{+',$
+                           tabdat['lsoftxray_errhi',j,k],'}$',$
+                           format=fstring)
+                        ; case of no flux errors; assume 10%
+                     endif else begin
+                        tabdat['fsoftxray_errlo',j,k] = $
+                           alog10(fsoftxray[i]) -  alog10(0.9d * fsoftxray[i])
+                        tabdat['fsoftxray_errhi',j,k] = $
+                           alog10(1.1d * fsoftxray[i]) - alog10(fsoftxray[i])
+                        tabdat['lsoftxray_errlo',j,k] = $
+                           alog10(lsoftxray[i]) -  alog10(0.9d * lsoftxray[i])
+                        tabdat['lsoftxray_errhi',j,k] = $
+                           alog10(1.1d * lsoftxray[i]) - alog10(lsoftxray[i])
+                        fsoftxray_err = 0.1d * fsoftxray[i]
+                     endelse
+                  endif
                endif
+               if lhardxray[i] ne bad then begin
+                  tabdat['lhardxray',j,k] = alog10(lhardxray[i])+44d
+                  hardstring = $
+                     string(tabdat['lhardxray',j,k],format='(D0.2)')
+                  if fhardxray[i] ne bad then begin
+                     tabdat['fhardxray',j,k] = alog10(fhardxray[i]) - 12d
+                     if fhardxray_errlo[i] ne 0d AND $
+                        fhardxray_errlo[i] ne bad then begin
+                        ; compute flux errors in log space
+                        tabdat['fhardxray_errlo',j,k] = $
+                           alog10(fhardxray[i]) - $
+                           alog10(fhardxray[i] - fhardxray_errlo[i])
+                        tabdat['fhardxray_errhi',j,k] = $
+                           alog10(fhardxray[i] + fhardxray_errhi[i]) - $
+                           alog10(fhardxray[i])
+                        tabdat['lhardxray_errlo',j,k] = $
+                           alog10(lhardxray[i]) - $
+                           alog10(lhardxray[i] - lhardxray[i] * $
+                           fhardxray_errlo[i] / fhardxray[i])
+                        fhardxray_err = (fhardxray_errlo[i] + fhardxray_errhi[i])/2d
+                        ; Compute luminosity errors from flux errors
+                        tabdat['lhardxray_errhi',j,k] = $
+                           alog10(lhardxray[i] + lhardxray[i] * $
+                           fhardxray_errhi[i] / fhardxray[i]) - $
+                           alog10(lhardxray[i])
+                        if tabdat['lhardxray_errlo',j,k] lt 0.0095 OR $
+                           tabdat['lhardxray_errhi',j,k] lt 0.0095 then $
+                           fstring ='(D0.3,A0,D0.3,A0,D0.3,A0)' $
+                        else fstring = '(D0.2,A0,D0.2,A0,D0.2,A0)'
+                        hardstring = $
+                           string(tabdat['lhardxray',j,k],'$_{-',$
+                           tabdat['lhardxray_errlo',j,k],'}^{+',$
+                           tabdat['lhardxray_errhi',j,k],'}$',$
+                           format=fstring)
+                        ; case of no flux errors; assume 10%
+                     endif else begin
+                        tabdat['fhardxray_errlo',j,k] = $
+                           alog10(fhardxray[i]) -  alog10(0.9d * fhardxray[i])
+                        tabdat['fhardxray_errhi',j,k] = $
+                           alog10(1.1d * fhardxray[i]) - alog10(fhardxray[i])
+                        tabdat['lhardxray_errlo',j,k] = $
+                           alog10(lhardxray[i]) -  alog10(0.9d * lhardxray[i])
+                        tabdat['lhardxray_errhi',j,k] = $
+                           alog10(1.1d * lhardxray[i]) - alog10(lhardxray[i])
+                        fhardxray_err = 0.1d * fhardxray[i]
+                     endelse
+                  endif
+               endif
+               if lhardxray[i] ne bad AND lsoftxray[i] ne bad $
+                  AND lsoftxray[i] ne 0d then begin
+                  tabdat['ltotxray',j,k] = alog10(lsoftxray[i] + lhardxray[i])+44d
+                  totxray = lsoftxray[i] + lhardxray[i]
+                  tabdat['ltotxray_errlo',j,k] = $
+                     sqrt(tabdat['lsoftxray_errlo',j,k]^2d + $
+                     tabdat['lhardxray_errlo',j,k]^2d)
+                  tabdat['ltotxray_errhi',j,k] = $
+                     sqrt(tabdat['lsoftxray_errhi',j,k]^2d + $
+                     tabdat['lhardxray_errhi',j,k]^2d)
+                  tabdat['lsoftratxray',j,k] = $
+                     tabdat['lsoftxray',j,k] - tabdat['ltotxray',j,k]
+                  tabdat['lsoftratxray_err',j,k] = $
+                     sqrt(fsoftxray[i]^2d * fhardxray_err^2d + $
+                     fhardxray[i]^2d * fsoftxray_err^2d) / $
+                     (fsoftxray[i]+fhardxray[i])^2d
+                  tabdat['lxlbol',j,k] = tabdat['ltotxray',j,k] - $
+                     llsun_ergps - tabdat['lbol',j]
+                  tabdat['lxlbol_errlo',j,k] = tabdat['ltotxray_errlo',j,k]
+                  tabdat['lxlbol_errhi',j,k] = tabdat['ltotxray_errhi',j,k]
+               endif
+               printf,lun_tmp,gal[i],softstring,hardstring,$
+                  format='(A-12,2A27)'
                k++
             endif else begin
                k = 0 ; re-zero x-ray component index
             endelse
          endif
+      endif else begin
+         k = 0 ; re-zero x-ray component index
       endelse
    endfor
+
+   free_lun,lun_tmp
 
 ; Compute physical quantities
 
@@ -241,9 +502,10 @@ pro cos_corr
    print,'Median alpha_ox: ',median(tabdat['alphaox',igdalphaox]),format='(A0,D0.2)'
 
 
-
-
-;  Set AGN fraction to 1 if we don't have a measurement
+;  Set AGN fraction to 1 if we don't have a measurement ... but  save  original values first for  table later
+   tabdatagnfrac = tabdat['agnfrac']
+   tabdatagnfraclb = tabdat['agnfraclb']
+   tabdatagnfracub = tabdat['agnfracub']
    ibdagnfrac = where(tabdat['agnfrac'] eq bad,ctbdagnfrac)
    if ctbdagnfrac gt 0 then begin
       tabdat['agnfrac',ibdagnfrac] = 1d
@@ -263,6 +525,8 @@ pro cos_corr
    lagn = dblarr(ncos)+bad
    lagnlb = dblarr(ncos)+bad
    lagnub = dblarr(ncos)+bad
+   lagn_errlo = dblarr(ncos)+bad
+   lagn_errhi = dblarr(ncos)+bad
    igdlbol = where(tabdat['lbol'] ne bad)
    lagn[igdlbol] = tabdat['lbol',igdlbol] + $
                    alog10(tabdat['agnfrac',igdlbol])
@@ -270,7 +534,11 @@ pro cos_corr
                      alog10(tabdat['agnfraclb',igdlbol])
    lagnub[igdlbol] = tabdat['lbol',igdlbol] + $
                      alog10(tabdat['agnfracub',igdlbol])
-                     
+   lagn_errlo[igdlbol] = lagn[igdlbol] - lagnlb[igdlbol]
+   lagn_errhi[igdlbol] = lagnub[igdlbol] - lagn[igdlbol]
+
+
+            
 ;  Black hole masses
    lmbh = dblarr(ncos)+bad
    lmbh_errlo = dblarr(ncos)+bad
@@ -280,6 +548,8 @@ pro cos_corr
                     tabdat['lmbh_rev_type'] eq 'RM')
    igdrevse = where(tabdat['lmbh_rev'] ne bad AND $
                     tabdat['lmbh_rev_type'] eq 'SE')
+   igdoth = where(tabdat['lmbh_rev'] ne bad AND $
+                  tabdat['lmbh_rev_type'] eq 'GRAVITY')
    ibdrev = where(tabdat['lmbh_rev'] eq bad AND $
                   tabdat['mbh_phot'] ne bad,ctbdrev)
    lmbh[igdrev] = tabdat['lmbh_rev',igdrev]
@@ -291,6 +561,8 @@ pro cos_corr
       sqrt(tabdat['lmbh_rev_errlo',igdrevse]^2d + 2d*0.43d^2d)
    lmbh_errhi[igdrevse] = $
       sqrt(tabdat['lmbh_rev_errhi',igdrevse]^2d + 2d*0.43d^2d)
+   lmbh_errlo[igdoth] = -tabdat['lmbh_rev_errlo',igdoth]
+   lmbh_errhi[igdoth] = tabdat['lmbh_rev_errhi',igdoth]
    if ctbdrev gt 0 then begin
       lmbh[ibdrev] = alog10(tabdat['mbh_phot',ibdrev])
       lmbh_errlo[ibdrev] = 0.5d
@@ -335,30 +607,50 @@ pro cos_corr
    maxncomp = 15
    nv = orderedhash()
    nv['ncomp'] = intarr(ncos)
-   nv['weq'] = dblarr(ncos)+bad
-   nv['weq_A'] = dblarr(ncos)+bad
-   nv['vwtavg'] = dblarr(ncos)+bad
-   nv['vwtrms'] = dblarr(ncos)+bad
+   nv['weq'] = dblarr(ncos,3)
+   nv['weq_lim'] = dblarr(ncos) + bad ;,3)
+   nv['weq_A'] = dblarr(ncos,3)
+   nv['weq_lim_A'] = dblarr(ncos) + bad ;,3)
+   nv['weq',*,0] = bad
+   ;nv['weq_lim',*,0] = bad
+   nv['weq_A',*,0] = bad
+   ;nv['weq_lim_A',*,0] = bad
+   nv['vwtavg'] = dblarr(ncos,3)
+   nv['vwtrms'] = dblarr(ncos,3)
+   nv['vwtavg',*,0] = bad
+   nv['vwtrms',*,0] = bad
    nv['v50'] = dblarr(ncos,maxncomp)+bad
    nv['cf'] = dblarr(ncos,maxncomp)+bad
    nv['tau'] = dblarr(ncos,maxncomp)+bad
    nv['sig'] = dblarr(ncos,maxncomp)+bad
    ovi = orderedhash()
    ovi['ncomp'] = intarr(ncos)
-   ovi['weq'] = dblarr(ncos)+bad
-   ovi['weq_A'] = dblarr(ncos)+bad
-   ovi['vwtavg'] = dblarr(ncos)+bad
-   ovi['vwtrms'] = dblarr(ncos)+bad
+   ovi['weq'] = dblarr(ncos,3)
+   ovi['weq_lim'] = dblarr(ncos) + bad ;,3)
+   ovi['weq_A'] = dblarr(ncos,3)
+   ovi['weq_lim_A'] = dblarr(ncos) + bad ;,3)
+   ovi['weq',*,0] = bad
+   ;ovi['weq_lim',*,0] = bad
+   ovi['weq_A',*,0] = bad
+   ;ovi['weq_lim_A',*,0] = bad
+   ovi['vwtavg'] = dblarr(ncos,3)
+   ovi['vwtrms'] = dblarr(ncos,3)
+   ovi['vwtavg',*,0] = bad
+   ovi['vwtrms',*,0] = bad
    ovi['v50'] = dblarr(ncos,maxncomp)+bad
    ovi['cf'] = dblarr(ncos,maxncomp)+bad
    ovi['tau'] = dblarr(ncos,maxncomp)+bad
    ovi['sig'] = dblarr(ncos,maxncomp)+bad
    pv = orderedhash()
    pv['ncomp'] = intarr(ncos)
-   pv['weq'] = dblarr(ncos)+bad
-   pv['weq_A'] = dblarr(ncos)+bad
-   pv['vwtavg'] = dblarr(ncos)+bad
-   pv['vwtrms'] = dblarr(ncos)+bad
+   pv['weq'] = dblarr(ncos,3)
+   pv['weq_A'] = dblarr(ncos,3)
+   pv['weq',*,0] = bad
+   pv['weq_A',*,0] = bad
+   pv['vwtavg'] = dblarr(ncos,3)
+   pv['vwtrms'] = dblarr(ncos,3)
+   pv['vwtavg',*,0] = bad
+   pv['vwtrms',*,0] = bad
    pv['v50'] = dblarr(ncos,maxncomp)+bad
    pv['cf'] = dblarr(ncos,maxncomp)+bad
    pv['tau'] = dblarr(ncos,maxncomp)+bad
@@ -367,19 +659,33 @@ pro cos_corr
       fitdir_gal=fitdir+tabdat['sgal',i]+'/'
       if file_test(fitdir_gal,/dir) then begin
          file_tmp = fitdir_gal+tabdat['sgal',i]+'NVpar_best.txt'
+         xdr_tmp = fitdir_gal+tabdat['sgal',i]+'NV_fit.xdr'
          if file_test(file_tmp) then begin
             readcol,file_tmp,ncomp_tmp,/silent,numline=1,skip=3,format='(I0,X)'
 ;            readcol,file_tmp,ncompem_tmp,/silent,numline=1,skip=1,format='(I0,X,X,X,X)'
-            readcol,file_tmp,totweq_tmp,/silent,numline=1,skip=4,format='(D0,X)'
-            readcol,file_tmp,vwtavg_tmp,/silent,numline=1,skip=5,format='(D0,X)'
-            readcol,file_tmp,vwtrms_tmp,/silent,numline=1,skip=6,format='(D0,X)'
+            readcol,file_tmp,totweq_tmp,totweq_errlo_tmp,totweq_errhi_tmp,$
+               /silent,numline=1,skip=4,format='(D0,D0,D0,X)'
+            readcol,file_tmp,vwtavg_tmp,vwtavg_errlo_tmp,vwtavg_errhi_tmp,$
+               /silent,numline=1,skip=5,format='(D0,D0,D0,X)'
+            readcol,file_tmp,vwtrms_tmp,vwtrms_errlo_tmp,vwtrms_errhi_tmp,$
+               /silent,numline=1,skip=6,format='(D0,D0,D0,X)'
             nv['ncomp',i]=ncomp_tmp[0]
             if totweq_tmp[0] gt 0 then begin
-               nv['weq',i]=alog10(totweq_tmp[0])
-               nv['weq_A',i]=totweq_tmp[0]
+               nv['weq',i,0]=alog10(totweq_tmp[0])
+               nv['weq',i,1]=alog10(totweq_tmp[0])-$
+                  alog10(totweq_tmp[0]-totweq_errlo_tmp[0])
+               nv['weq',i,2]=alog10(totweq_tmp[0]+totweq_errhi_tmp[0])-$
+                  alog10(totweq_tmp[0])
+               nv['weq_A',i,0]=totweq_tmp[0]
+               nv['weq_A',i,1]=totweq_errlo_tmp[0]
+               nv['weq_A',i,2]=totweq_errhi_tmp[0]
             endif
-            nv['vwtavg',i] = vwtavg_tmp[0]
-            nv['vwtrms',i] = vwtrms_tmp[0]
+            nv['vwtavg',i,0] = vwtavg_tmp[0]
+            nv['vwtavg',i,1] = vwtavg_errlo_tmp[0]
+            nv['vwtavg',i,2] = vwtavg_errhi_tmp[0]
+            nv['vwtrms',i,0] = vwtrms_tmp[0]
+            nv['vwtrms',i,1] = vwtrms_errlo_tmp[0]
+            nv['vwtrms',i,2] = vwtrms_errhi_tmp[0]
             readcol,file_tmp,cf,tau1243,lambda1243,sig,vel,/silent,$
                     numline=ncomp_tmp[0],skip=10,format='(D,D,D,D,D)'
             nv['v50',i,0:ncomp_tmp[0]-1] = vel
@@ -391,16 +697,29 @@ pro cos_corr
          if file_test(file_tmp) then begin
             readcol,file_tmp,ncomp_tmp,/silent,numline=1,skip=3,format='(I0,X)'
 ;            readcol,file_tmp,ncompem_tmp,/silent,numline=1,skip=1,format='(I0,X,X,X,X)'
-            readcol,file_tmp,totweq_tmp,/silent,numline=1,skip=4,format='(D0,X)'
-            readcol,file_tmp,vwtavg_tmp,/silent,numline=1,skip=5,format='(D0,X)'
-            readcol,file_tmp,vwtrms_tmp,/silent,numline=1,skip=6,format='(D0,X)'
+            readcol,file_tmp,totweq_tmp,totweq_errlo_tmp,totweq_errhi_tmp,$
+               /silent,numline=1,skip=4,format='(D0,D0,D0,X)'
+            readcol,file_tmp,vwtavg_tmp,vwtavg_errlo_tmp,vwtavg_errhi_tmp,$
+               /silent,numline=1,skip=5,format='(D0,D0,D0,X)'
+            readcol,file_tmp,vwtrms_tmp,vwtrms_errlo_tmp,vwtrms_errhi_tmp,$
+               /silent,numline=1,skip=6,format='(D0,D0,D0,X)'
             ovi['ncomp',i]=ncomp_tmp[0]
             if totweq_tmp[0] gt 0 then begin
-               ovi['weq',i]=alog10(totweq_tmp[0])
-               ovi['weq_A',i]=totweq_tmp[0]
+               ovi['weq',i,0]=alog10(totweq_tmp[0])
+               ovi['weq',i,1]=alog10(totweq_tmp[0])-$
+                  alog10(totweq_tmp[0]-totweq_errlo_tmp[0])
+               ovi['weq',i,2]=alog10(totweq_tmp[0]+totweq_errhi_tmp[0])-$
+                  alog10(totweq_tmp[0])
+               ovi['weq_A',i,0]=totweq_tmp[0]
+               ovi['weq_A',i,1]=totweq_errlo_tmp[0]
+               ovi['weq_A',i,2]=totweq_errhi_tmp[0]
             endif
-            ovi['vwtavg',i] = vwtavg_tmp[0]
-            ovi['vwtrms',i] = vwtrms_tmp[0]
+            ovi['vwtavg',i,0] = vwtavg_tmp[0]
+            ovi['vwtavg',i,1] = vwtavg_errlo_tmp[0]
+            ovi['vwtavg',i,2] = vwtavg_errhi_tmp[0]
+            ovi['vwtrms',i,0] = vwtrms_tmp[0]
+            ovi['vwtrms',i,1] = vwtrms_errlo_tmp[0]
+            ovi['vwtrms',i,2] = vwtrms_errhi_tmp[0]
             readcol,file_tmp,cf,tau1038,lambda1038,sig,vel,/silent,$
                     numline=ncomp_tmp[0],skip=10,format='(D,D,D,D,D)'
             ovi['v50',i,0:ncomp_tmp[0]-1] = vel
@@ -412,16 +731,29 @@ pro cos_corr
          if file_test(file_tmp) then begin
             readcol,file_tmp,ncomp_tmp,/silent,numline=1,skip=3,format='(I0,X)'
             ;            readcol,file_tmp,ncompem_tmp,/silent,numline=1,skip=1,format='(I0,X,X,X,X)'
-            readcol,file_tmp,totweq_tmp,/silent,numline=1,skip=4,format='(D0,X)'
-            readcol,file_tmp,vwtavg_tmp,/silent,numline=1,skip=5,format='(D0,X)'
-            readcol,file_tmp,vwtrms_tmp,/silent,numline=1,skip=6,format='(D0,X)'
+            readcol,file_tmp,totweq_tmp,totweq_errlo_tmp,totweq_errhi_tmp,$
+               /silent,numline=1,skip=4,format='(D0,D0,D0,X)'
+            readcol,file_tmp,vwtavg_tmp,vwtavg_errlo_tmp,vwtavg_errhi_tmp,$
+               /silent,numline=1,skip=5,format='(D0,D0,D0,X)'
+            readcol,file_tmp,vwtrms_tmp,vwtrms_errlo_tmp,vwtrms_errhi_tmp,$
+               /silent,numline=1,skip=6,format='(D0,D0,D0,X)'
             pv['ncomp',i]=ncomp_tmp[0]
             if totweq_tmp[0] gt 0 then begin
-               pv['weq',i]=alog10(totweq_tmp[0])
-               pv['weq_A',i]=totweq_tmp[0]
+               pv['weq',i,0]=alog10(totweq_tmp[0])
+               pv['weq',i,1]=alog10(totweq_tmp[0])-$
+                  alog10(totweq_tmp[0]-totweq_errlo_tmp[0])
+               pv['weq',i,2]=alog10(totweq_tmp[0]+totweq_errhi_tmp[0])-$
+                  alog10(totweq_tmp[0])
+               pv['weq_A',i,0]=totweq_tmp[0]
+               pv['weq_A',i,1]=totweq_errlo_tmp[0]
+               pv['weq_A',i,2]=totweq_errhi_tmp[0]
             endif
-            pv['vwtavg',i] = vwtavg_tmp[0]
-            pv['vwtrms',i] = vwtrms_tmp[0]
+            pv['vwtavg',i,0] = vwtavg_tmp[0]
+            pv['vwtavg',i,1] = vwtavg_errlo_tmp[0]
+            pv['vwtavg',i,2] = vwtavg_errhi_tmp[0]
+            pv['vwtrms',i,0] = vwtrms_tmp[0]
+            pv['vwtrms',i,1] = vwtrms_errlo_tmp[0]
+            pv['vwtrms',i,2] = vwtrms_errhi_tmp[0]
             readcol,file_tmp,cf,tau1128,lambda1128,sig,vel,/silent,$
                numline=ncomp_tmp[0],skip=10,format='(D,D,D,D,D)'
             pv['v50',i,0:ncomp_tmp[0]-1] = vel
@@ -430,6 +762,120 @@ pro cos_corr
             pv['sig',i,0:ncomp_tmp[0]-1] = sig
          endif
       endif
+      ; compute upper limits
+      iwin_A = 0.5d ; half-width of window in which to compute stats
+      ispec_A = 2.5d ; half-width of window in which to compute spectrum
+      modsig = 50d ; sigma for upper limit model
+      if nv['ncomp',i] eq 0 OR ovi['ncomp',i] eq 0 then begin
+         readcol,specdir+tabdat['sgal',i]+'.txt',lam,fx,err,format='(D,D,D)',$
+            /silent
+         npts = n_elements(lam)
+         disp = median(lam[1:npts-1]-lam[0:npts-2])
+         iwin_p = round(iwin_A / disp)
+         ispec_p = round(ispec_A / disp)
+         lovi1032 = (1d + tabdat['z',i])*linelist['OVI1031']
+         lovi1038 = (1d + tabdat['z',i])*linelist['OVI1037']
+         lnv1238 = (1d + tabdat['z',i])*linelist['NV1238']
+         lnv1242 = (1d + tabdat['z',i])*linelist['NV1242']
+         ; to avoid strong Galactic absorption for this case
+         if tabdat['sgal',i] eq 'pg0157' then begin
+            lovi1032 -= 2d
+            lovi1038 -= 2d
+         endif
+         iovi1032 = value_locate(lam,lovi1032)
+         iovi1038 = value_locate(lam,lovi1038)
+         inv1238 = value_locate(lam,lnv1238)
+         inv1242 = value_locate(lam,lnv1242)
+         ; note we remove PG1501 b/c no data in NV region
+         if nv['ncomp',i] eq 0 AND inv1238 ne -1 AND inv1238 ne npts-1 AND $
+            inv1242 ne -1 AND inv1242 ne npts-1 AND $
+            tabdat['sgal',i] ne 'pg1501'then begin
+            medfx = median([fx[inv1238-iwin_p:inv1238+iwin_p],$
+               fx[inv1242-iwin_p:inv1242+iwin_p]])
+            mederr = median([err[inv1238-iwin_p:inv1238+iwin_p],$
+               err[inv1242-iwin_p:inv1242+iwin_p]])
+            rmsfx = stddev([fx[inv1238-iwin_p:inv1238+iwin_p],$
+               fx[inv1242-iwin_p:inv1242+iwin_p]])
+            mederrnorm = mederr / medfx
+            rmsfxnorm = rmsfx / medfx
+            nvmodweq = 1b
+            ;nvmodweqlo = 1b
+            ;nvmodweqhi = 1b
+            ; model is: cf = rmsfxnorm/2 (divide by 2 b/c two lines!)
+            ;    tau = 5
+            ;    rest wave
+            ;    median measured sig
+            nvmod = ifsf_doubletfcn(lam[inv1238-ispec_p:inv1242+ispec_p],$
+               [1,0,rmsfxnorm/2d,5d,lnv1242,modsig],doubletname='NV',$
+               weq=nvmodweq)
+            ;nvmodlo = ifsf_doubletfcn(lam[inv1238-ispec_p:inv1242+ispec_p],$
+            ;   [1,0,rmsfxnorm/4d,5d,lnv1242,modsig],doubletname='NV',$
+            ;   weq=nvmodweqlo)
+            ;nvmodhi = ifsf_doubletfcn(lam[inv1238-ispec_p:inv1242+ispec_p],$
+            ;   [1,0,rmsfxnorm,5d,lnv1242,modsig],doubletname='NV',$
+            ;   weq=nvmodweqhi)
+            nv['weq_lim',i] = alog10(nvmodweq.abs[0])
+            ;nv['weq_lim',i,0] = alog10(nvmodweq.abs[0])
+            ;nv['weq_lim',i,1] = alog10(nvmodweq.abs[0]) - $
+            ;   alog10(nvmodweqlo.abs[0])
+            ;nv['weq_lim',i,2] = alog10(nvmodweqhi.abs[0]) - $
+            ;   alog10(nvmodweq.abs[0])
+            nv['weq_lim_A',i] = nvmodweq.abs[0]
+            ;nv['weq_lim_A',i,0] = nvmodweq.abs[0]
+            ;nv['weq_lim_A',i,1] = nvmodweq.abs[0] - nvmodweqlo.abs[0]
+            ;nv['weq_lim_A',i,2] = nvmodweqhi.abs[0] - nvmodweq.abs[0]
+            ; Examine model spectra cf actual spectra
+            ;set_plot,'x'
+            ;cgplot,lam[inv1238-ispec_p:inv1242+ispec_p],nvmod,yran=[0,1.5]
+            ;cgoplot,lam[inv1238-ispec_p:inv1242+ispec_p],fx[inv1238-ispec_p:inv1242+ispec_p]/medfx
+            ;print,tabdat['sgal',i],mederrnorm,nvmodweq.abs[0]
+            
+         endif
+         ; note we remove PG2349 b/c geocoronal Lyalpha
+         if ovi['ncomp',i] eq 0 AND iovi1032 ne -1 AND iovi1032 ne npts-1 AND $
+            iovi1038 ne -1 AND iovi1038 ne npts-1 AND $
+            tabdat['sgal',i] ne 'pg2349' then begin
+            medfx = median([fx[iovi1032-iwin_p:iovi1032+iwin_p],$
+               fx[iovi1038-iwin_p:iovi1038+iwin_p]])
+            mederr = median([err[iovi1032-iwin_p:iovi1032+iwin_p],$
+               err[iovi1038-iwin_p:iovi1038+iwin_p]])
+            rmsfx = stddev([fx[iovi1032-iwin_p:iovi1032+iwin_p],$
+               fx[iovi1038-iwin_p:iovi1038+iwin_p]])
+            mederrnorm = mederr / medfx
+            rmsfxnorm = rmsfx / medfx
+            ovimodweq = 1b
+            ;ovimodweqlo = 1b
+            ;ovimodweqhi = 1b
+            ; model is: cf = rmsfxnorm/2 (divide by 2 b/c two lines!)
+            ;    tau = 5
+            ;    rest wave
+            ;    median measured sig
+            ovimod = ifsf_doubletfcn(lam[iovi1032-ispec_p:iovi1038+ispec_p],$
+               [1,0,rmsfxnorm/2d,5d,lovi1038,modsig],doubletname='OVI',$
+               weq=ovimodweq)
+            ;ovimodlo = ifsf_doubletfcn(lam[iovi1032-ispec_p:iovi1038+ispec_p],$
+            ;   [1,0,rmsfxnorm/4d,5d,lovi1038,modsig],doubletname='OVI',$
+            ;   weq=ovimodweqlo)
+            ;ovimodhi = ifsf_doubletfcn(lam[iovi1032-ispec_p:iovi1038+ispec_p],$
+            ;   [1,0,rmsfxnorm,5d,lovi1038,modsig],doubletname='OVI',$
+            ;   weq=ovimodweqhi)
+            ovi['weq_lim',i] = alog10(ovimodweq.abs[0])
+            ;ovi['weq_lim',i,0] = alog10(ovimodweq.abs[0])
+            ;ovi['weq_lim',i,1] = alog10(ovimodweq.abs[0]) - $
+            ;   alog10(ovimodweqlo.abs[0])
+            ;ovi['weq_lim',i,2] = alog10(ovimodweqhi.abs[0]) - $
+            ;   alog10(ovimodweq.abs[0])
+            ovi['weq_lim_A',i] = ovimodweq.abs[0]
+            ;ovi['weq_lim_A',i,0] = ovimodweq.abs[0]
+            ;ovi['weq_lim_A',i,1] = ovimodweq.abs[0] - ovimodweqlo.abs[0]
+            ;ovi['weq_lim_A',i,2] = ovimodweqhi.abs[0] - ovimodweq.abs[0]
+            ; Examine model spectra cf actual spectra
+            ;set_plot,'x'
+            ;cgplot,lam[iovi1032-ispec_p:iovi1038+ispec_p],ovimod,yran=[0,1.5]
+            ;cgoplot,lam[iovi1032-ispec_p:iovi1038+ispec_p],fx[iovi1032-ispec_p:iovi1038+ispec_p]/medfx
+            ;print,tabdat['sgal',i],mederrnorm,ovimodweq.abs[0]
+         endif
+     endif
    endfor
    igd_nv_comp = where(nv['v50'] ne bad,ctnvcomp)
    igd_ovi_comp = where(ovi['v50'] ne bad,ctovicomp)
@@ -464,6 +910,16 @@ tmpy_ovi = dblarr(ctovi_nd)+1d99
 for i=0,ctnv_nd-1 do tmpy_nv[i] *= randomu(seed)+0.5d
 for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
+;  output table for regressions
+; Threshold pval for marking as significant in output regression table
+tpval = 0.05
+openw,lun_stat,tabdir+'tab_regressions.txt',/get_lun
+printf,lun_stat,'#Col 1: x-axis quantity'
+printf,lun_stat,'#Col 2: y-axis quantity'
+printf,lun_stat,'#Col 3-4: p, lower limit flag'
+printf,lun_stat,'#Col 6-8: r, +/- error'
+printf,lun_stat,'#Col 9: no. of points'
+statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -498,7 +954,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
+             charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
 ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -512,7 +968,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'luv'
-   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$) / erg s$\up-1$ ]'
+   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$)/erg s$\up-1$]'
    xran = [42.5d,47d]
 
    ylab = 'v50'
@@ -522,7 +978,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -542,7 +998,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,position=[0.18,0.18,0.99,0.99]
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -562,7 +1018,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(lagn,ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,position=[0.18,0.18,0.99,0.99]
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -582,7 +1038,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(lmbh,ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,position=[0.18,0.18,0.99,0.99]
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -603,7 +1059,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(leddrat,ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,position=[0.18,0.18,0.99,0.99]
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -623,7 +1079,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
+             charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,position=[0.18,0.18,0.99,0.99]
    ;          err_ylo=nv['sig',igd_nv_comp]*fwhm2sig/2d,$
@@ -642,7 +1098,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-0.05,1.05]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
+             charsize=chars,default=4,/quiet
    cgplot,nv[xlab,igd_nv_comp],nv[ylab,igd_nv_comp],xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.18,0.18,0.99,0.99]
@@ -670,7 +1126,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
+             charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -685,7 +1141,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'luv'
-   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$) / erg s$\up-1$ ]'
+   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$)/erg s$\up-1$]'
    xran = [42.5d,47d]
 
    ylab = 'sig'
@@ -696,7 +1152,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
       position=[0.14,0.14,0.95,0.95]
@@ -719,7 +1175,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -741,7 +1197,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(lagn,ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -762,7 +1218,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(lmbh,ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -784,7 +1240,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(leddrat,ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
+      charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
       psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -806,7 +1262,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xrebin = rebin(tabdat[xlab],ncos,maxncomp)
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
+             charsize=chars,default=4,/quiet
    cgplot,xrebin[igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -826,7 +1282,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-0.1,1.1]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
+             charsize=chars,default=4,/quiet
    cgplot,nv[xlab,igd_nv_comp],alog10(nv[ylab,igd_nv_comp]),xran=xran,yran=yran,$
           psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit,$
           position=[0.14,0.14,0.95,0.95]
@@ -842,6 +1298,8 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 ; weq vs.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+   chars = 2.5
+
    xlab = 'lbol'
    xtit = 'log(L$\downbol$/L$\sun$)'
    xran = [11.2,13.2]
@@ -851,66 +1309,367 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    yran = [-2,2]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
-   cgps_close
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+   cgoplot,tabdat[xlab],ovi['weq_lim'],symsize=1,color='Blue',$
+           psym='Open Down Triangle'
 
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      tabdat[xlab] ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctovilim)
+
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = tabdat[xlab,iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
+   cgps_close
 
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'luv'
-   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$) / erg s$\up-1$ ]'
+   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$)/erg s$\up-1$]'
    xran = [42.5d,47d]
 
-   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-      psym=15,symsize=1,color='Red',ytit=ytit,$
-      position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
-      color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-      position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-      yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
-   cgps_close
 
+   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+   cgoplot,tabdat[xlab],ovi['weq_lim'],symsize=1,color='Blue',$
+           psym='Open Down Triangle'
+
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      tabdat[xlab] ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctovilim)
+
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = tabdat[xlab,iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   ;xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,yerr=yerr,/metro,$ ;xerr=xerr,
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         ;xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
+   cgps_close
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'agnfrac'
    xtit = 'AGN fraction'
-   xran = [0.7,1.02]
+   xran = [0.65,1.02]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+      psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+      position=[0.15,0.15,0.95,0.95],$
+      err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+      err_xlo=tabdat[xlab]-tabdat[xlab+'lb'],$
+      err_xhi=tabdat[xlab+'ub'] - tabdat[xlab],/err_clip,$
+      xtickint=0.1
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],nv['weq_lim'],symsize=0.01,color='Grey',psym=1,$
+      err_xlo=tabdat[xlab]-tabdat[xlab+'lb'],$
+      err_xhi=tabdat[xlab+'ub'] - tabdat[xlab],/err_clip,$
+      err_width=0d
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=1,symsize=0.01,color='Grey',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=tabdat[xlab]-tabdat[xlab+'lb'],$
+      err_xhi=tabdat[xlab+'ub'] - tabdat[xlab],/err_clip
+   cgoplot,tabdat[xlab],ovi['weq_lim'],symsize=0.01,color='Grey',psym=1,$
+      err_xlo=tabdat[xlab]-tabdat[xlab+'lb'],$
+      err_xhi=tabdat[xlab+'ub'] - tabdat[xlab],/err_clip,$
+      err_width=0d
+   cgoplot,tabdat[xlab],nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,tabdat[xlab],nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+   cgoplot,tabdat[xlab],ovi['weq_lim'],symsize=1,color='Blue',$
+      psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      tabdat[xlab] ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctovilim)
+
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = tabdat[xlab,iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerravg = (-tabdat[xlab+'lb']+tabdat[xlab+'ub'])/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d] ;mean(yerravg[invdet])]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=3,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.35*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.15,0.40,0.40,0.15,0.15],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.15,0.7,0.4,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endelse
+
    cgps_close
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -920,19 +1679,129 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [11.301,12.799]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lagn,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,lagn,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lagn[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lagn[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lagn,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+          err_xlo=lagn_errlo,$
+          err_xhi=lagn_errhi,/err_clip,err_color='Grey',$
+          xtickint=0.4
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lagn,nv['weq_lim'],symsize=0.01,color='Grey',psym=1,$
+      err_xlo=lagn_errlo,$
+      err_xhi=lagn_errhi,/err_clip,$
+      err_width=0d,err_color='Grey'
+   cgoplot,lagn,ovi[ylab,*,0],psym=1,symsize=0.01,color='Blue',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=lagn_errlo,$
+      err_xhi=lagn_errhi,/err_clip,err_color='Grey'
+   cgoplot,lagn,ovi['weq_lim'],symsize=0.01,color='Blue',psym=1,$
+      err_xlo=lagn_errlo,$
+      err_xhi=lagn_errhi,/err_clip,$
+      err_width=0d,err_color='Grey'
+   cgoplot,lagn,nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,lagn,nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,lagn,ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+   cgoplot,lagn,ovi['weq_lim'],symsize=1,color='Blue',$
+      psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lagn ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      lagn ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lagn ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      lagn ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lagn ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      lagn ne bad,ctovilim)
+   
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = lagn[iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerravg = (lagn_errlo+lagn_errhi)/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d] ;mean(yerravg[invdet])]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -941,20 +1810,131 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xtit = 'log(M$\downBH$/M$\sun$)'
    xran = [6.5,9.5]
 
+
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lmbh,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,lmbh,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lmbh[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lmbh[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lmbh,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+          err_xlo=lmbh_errlo,$
+          err_xhi=lmbh_errhi,/err_clip,err_color='Grey',$
+          xtickint=0.4
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lmbh,nv['weq_lim'],symsize=0.01,color='Grey',psym=1,$
+      err_xlo=lmbh_errlo,$
+      err_xhi=lmbh_errhi,/err_clip,$
+      err_width=0d,err_color='Grey'
+   cgoplot,lmbh,ovi[ylab,*,0],psym=1,symsize=0.01,color='Blue',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=lmbh_errlo,$
+      err_xhi=lmbh_errhi,/err_clip,err_color='Grey'
+   cgoplot,lmbh,ovi['weq_lim'],symsize=0.01,color='Blue',psym=1,$
+      err_xlo=lmbh_errlo,$
+      err_xhi=lmbh_errhi,/err_clip,$
+      err_width=0d,err_color='Grey'
+   cgoplot,lmbh,nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,lmbh,nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,lmbh,ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+   cgoplot,lmbh,ovi['weq_lim'],symsize=1,color='Blue',$
+      psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lmbh ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      lmbh ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lmbh ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      lmbh ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lmbh ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      lmbh ne bad,ctovilim)
+   
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = lmbh[iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerravg = (lmbh_errlo+lmbh_errhi)/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d] ;mean(yerravg[invdet])]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.35*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.15,0.40,0.40,0.15,0.15],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.15,0.7,0.40,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
@@ -965,20 +1945,131 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-2,0.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,leddrat,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,leddrat,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,leddrat[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,leddrat[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,leddrat,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+          err_xlo=leddrat_errlo,$
+          err_xhi=leddrat_errhi,/err_clip,err_color='Grey',$
+          xtickint=0.4
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,leddrat,nv['weq_lim'],symsize=0.01,color='Grey',psym=1,$
+      err_xlo=leddrat_errlo,$
+      err_xhi=leddrat_errhi,/err_clip,$
+      err_width=0d,err_color='Grey'
+   cgoplot,leddrat,ovi[ylab,*,0],psym=1,symsize=0.01,color='Blue',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=leddrat_errlo,$
+      err_xhi=leddrat_errhi,/err_clip,err_color='Grey'
+   cgoplot,leddrat,ovi['weq_lim'],symsize=0.01,color='Blue',psym=1,$
+      err_xlo=leddrat_errlo,$
+      err_xhi=leddrat_errhi,/err_clip,$
+      err_width=0d,err_color='Grey'
+   cgoplot,leddrat,nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,leddrat,nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,leddrat,ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+   cgoplot,leddrat,ovi['weq_lim'],symsize=1,color='Blue',$
+      psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      leddrat ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      leddrat ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      leddrat ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      leddrat ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      leddrat ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      leddrat ne bad,ctovilim)
+   
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = leddrat[iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerravg = (leddrat_errlo+leddrat_errhi)/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d] ;mean(yerravg[invdet])]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -987,19 +2078,114 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-2.2,-1.1]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+   cgoplot,tabdat[xlab],ovi['weq_lim'],symsize=1,color='Blue',$
+           psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      tabdat[xlab] ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      tabdat[xlab] ne bad,ctovilim)
+
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = tabdat[xlab,iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1009,19 +2195,114 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-0.799,0.199]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lirlbol,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,lirlbol,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lirlbol[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lirlbol[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lirlbol,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lirlbol,nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,lirlbol,ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+   cgoplot,lirlbol,ovi['weq_lim'],symsize=1,color='Blue',$
+           psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lirlbol ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      lirlbol ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lirlbol ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      lirlbol ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lirlbol ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      lirlbol ne bad,ctovilim)
+
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = lirlbol[iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.35*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.15,0.4,0.4,0.15,0.15],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.15,0.7,0.4,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1031,82 +2312,277 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-2,0]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lfirlbol,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
-   cgoplot,lfirlbol,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lfirlbol[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lfirlbol[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lfirlbol,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lfirlbol,nv['weq_lim'],symsize=1,color='Red',$
+      psym='Filled Down Triangle'
+   cgoplot,lfirlbol,ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+   cgoplot,lfirlbol,ovi['weq_lim'],symsize=1,color='Blue',$
+           psym='Open Down Triangle'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lfirlbol ne bad,ctbothdet)
+   ibothlim = where(nv['weq_lim'] ne bad AND $
+      ovi['weq_lim'] ne bad AND $
+      lfirlbol ne bad,ctbothlim)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lfirlbol ne bad,ctnvdet)
+   invlim = where(nv['weq_lim'] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      ovi['weq_lim'] eq bad AND $
+      lfirlbol ne bad,ctnvlim)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lfirlbol ne bad,ctovidet)
+   iovilim = where(ovi['weq_lim'] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      nv['weq_lim'] eq bad AND $
+      lfirlbol ne bad,ctovilim)
+
+   npts = ctbothdet + ctbothlim + ctnvdet + ctnvlim + ctovidet + ctovilim
+   iall = [ibothdet,ibothlim,invdet,invlim,iovidet,iovilim]
+   xdat = lfirlbol[iall]
+   ydat = [alog10((10d^nv[ylab,ibothdet,0]+10d^ovi[ylab,ibothdet,0])/2d),$
+      alog10((10d^nv['weq_lim',ibothlim]+10d^ovi['weq_lim',ibothlim])/2d),$
+      nv[ylab,invdet,0],nv['weq_lim',invlim],$
+      ovi[ylab,iovidet,0],ovi['weq_lim',iovilim]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],dblarr(ctbothlim)+0.1d,$
+      ynverravg[invdet],dblarr(ctnvlim)+0.1d,$
+      yovierravg[iovidet],dblarr(ctovilim)+0.1d]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctbothlim),$
+      bytarr(ctnvdet)+1b,bytarr(ctnvlim),$
+      bytarr(ctovidet)+1b,bytarr(ctovilim)]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'nhxray'
-   xtit = 'log[ N(H, X-ray) / cm$\up-2$ ]'
-   xran = [19d,24d]
+   xtit = 'log[ N(H, X-ray) / cm$\up-2$]'
+   xran = [19.5d,24.5d]
+
+   openw,tmplun,plotdir+ylab+'_vs_'+xlab+'_dat.txt',/get_lun
+   printf,tmplun,'xdat','ydat','xerr','yerr','xl','yl',$
+      format='(4A8,2A3)'
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
          x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         inz = where(x gt 0 AND x ne bad,ctnz)
-         iz = where(x eq 0,ctz)
-         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
-         if ctz gt 0 then x[iz] = 20d
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         xerrlo = tabdat[xlab+'_errlo',i,0:tabdat['n_xray',i]-1]
+         xerrhi = tabdat[xlab+'_errhi',i,0:tabdat['n_xray',i]-1]
+         x_lim = tabdat[xlab+'_lim',i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i,0]],tabdat['n_xray',i])
+         ynv_errlo = rebin([nv[ylab,i,1]],tabdat['n_xray',i])
+         ynv_errhi = rebin([nv[ylab,i,2]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i,0]],tabdat['n_xray',i])
+         yovi_errlo = rebin([ovi[ylab,i,1]],tabdat['n_xray',i])
+         yovi_errhi = rebin([ovi[ylab,i,2]],tabdat['n_xray',i])
+         ynv_lim = rebin([nv[ylab+'_lim',i]],tabdat['n_xray',i])
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],tabdat['n_xray',i])
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x_lim,ynv,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Left Triangle',/err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
+         usersym,[-0.366d,1d,0d,-0.366d]*1.5d,[-0.366d,0d,1d,-0.366d]*1.5d,$
+            thick=!P.thick,/fill
+         cgoplot,x_lim,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym=8,/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x_lim,yovi,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Left Triangle',/err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
+         usersym,[-0.366d,1d,0d,-0.366d]*1.5d,[-0.366d,0d,1d,-0.366d]*1.5d,$
+            thick=!P.thick
+         cgoplot,x_lim,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym=8,/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
-         if ctz gt 0 then begin
-            cgoplot,x[iz]-0.07d,ynv[iz],psym=13,symsize=2,color='Red'
-            cgoplot,x[iz]-0.07d,yovi[iz],psym=13,symsize=2,color='Blue'
+                  
+         ; this assumes all X-ray obs. for an object are either detections or limits
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+            xuselim = 0b
+         endif else if x_lim[0] ne bad then begin
+            xuse = mean(x_lim[0])
+            xuseerr = 0.3d ; assume factor-of-2 error on limit
+            xuselim = 1b
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 0b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 0b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 1b
+            endif else if yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 1b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_ovi OR not nodat_nv then begin
+            printf,tmplun,xuse,yuse,xuseerr,yuseerr,xuselim,yuselim,$
+            format='(D8.4,D8.4,D8.4,D8.4,I3,I3)'
+            xdat = [xdat, xuse]
+            ydat = [ydat, yuse]
+            cens = [cens, xuselim OR yuselim]
          endif
       endif
    endfor
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shifty = (randomu(seed)+0.5d)
-         shiftx = (randomu(seed)-0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shifty
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shifty
-         inz = where(x gt 0 AND x ne bad,ctnz)
-         iz = where(x eq 0,ctz)
-         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
-         if ctz gt 0 then x[iz] = 20d + shiftx
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-            if ctz gt 0 then $
-               cgoplot,x[iz]-0.07d,ynv[iz],psym=13,symsize=2,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-            if ctz gt 0 then $
-               cgoplot,x[iz]-0.07d,yovi[iz],psym=13,symsize=2,color='Blue'
-         endif
-       endif 
-   endfor
+
+   readcol,plotdir+ylab+'_vs_'+xlab+'_stat.txt',cc,pval,skip=1,/silent,$
+      format='(D,D)'
+   ; translate pymcc results to LINMIX_ERR results
+   pval[0] = pval[1]
+   pval[1] = 0
+   corr = dblarr(3)
+   corr[0] = cc[1]
+   corr[1] = cc[1]-cc[0]
+   corr[2] = cc[2]-cc[1]
+   xloc = xran[0]+0.35*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[1],'  r=',cc[1],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(cc[1]-cc[0],format='(D0.2)')+'}^{+'+$
+      string(cc[2]-cc[1],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 0b)
+   indet = where(cens eq 1b)
+   cgpolygon,[0.15,0.4,0.4,0.15,0.15],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.15,0.7,0.4,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
+   free_lun,tmplun
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1115,273 +2591,944 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [1,3.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
          x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+         xerrlo = tabdat[xlab+'_errlo',i,0:tabdat['n_xray',i]-1]
+         xerrhi = tabdat[xlab+'_errhi',i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i,0]],tabdat['n_xray',i])
+         ynv_errlo = rebin([nv[ylab,i,1]],tabdat['n_xray',i])
+         ynv_errhi = rebin([nv[ylab,i,2]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i,0]],tabdat['n_xray',i])
+         yovi_errlo = rebin([ovi[ylab,i,1]],tabdat['n_xray',i])
+         yovi_errhi = rebin([ovi[ylab,i,2]],tabdat['n_xray',i])
+         ynv_lim = rebin([nv[ylab+'_lim',i]],tabdat['n_xray',i])
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],tabdat['n_xray',i])
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shifty = (randomu(seed)+0.5d)
-         shiftx = (randomu(seed)-0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shifty
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shifty
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'fsoftxray'
-   xtit = 'log[ F(0.5-2 keV) / erg s$\up-1$ cm$\up-2$ ]'
+   xtit = 'log[F(0.5-2 keV)/erg s$\up-1$ cm$\up-2$]'
    xran = [-14,-10]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'fhardxray'
-   xtit = 'log[ F(2-10 keV) / erg s$\up-1$ cm$\up-2$ ]'
-   xran = [-13,-9.8]
+   xtit = 'log[F(2-10 keV)/erg s$\up-1$ cm$\up-2$]'
+   xran = [-13.3,-9.8]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],xtickint=1d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lsoftxray'
-   xtit = 'log[ L(0.5-2 keV) / erg s$\up-1$ ]'
+   xtit = 'log[L(0.5-2 keV)/erg s$\up-1$]'
    xran = [42,46]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],xtickint=1d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lhardxray'
-   xtit = 'log[ L(2-10 keV) / erg s$\up-1$ ]'
+   xtit = 'log[L(2-10 keV)/erg s$\up-1$]'
    xran = [42.25,46.25]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],xtickint=1d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'ltotxray'
-   xtit = 'log[ L(0.5-10 keV) / erg s$\up-1$ ]'
+   xtit = 'log[L(0.5-10 keV)/erg s$\up-1$]'
    xran = [42.5,46.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95],xtickint=1d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
@@ -1389,156 +3536,520 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
    xlab = 'lsoftratxray'
    xtit = 'L(0.5-2 keV) / L(0.5-10 keV)'
-   xran = [0.1,0.9]
+   xran = [-0.8d,0d]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_err',i,igdx]
+         xerrhi = tabdat[xlab+'_err',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lxlbol'
-   xtit = 'log[ L(0.5-10 keV) / L$\downbol$ ]'
+   xtit = 'log[L(0.5-10 keV) / L$\downbol$]'
    xran = [-3.3,-0.3]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.15,0.25,0.95,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.15,0.15,0.95,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red'
+      ; special treatment for F(soft); PG0050 has one obs. with no flux listed
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+         ynv_lim = rebin([nv[ylab+'_lim',i]],ngdx)
+         yovi_lim = rebin([ovi[ylab+'_lim',i]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else if ynv_lim[0] ne bad then begin
+            yuse = ynv_lim[0]
+            yuseerr = 0.1d
+            yuselim = 0b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv OR not yuselim then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (yovi[0] + ynv[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else if yovi_lim[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi_lim[0]
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif else if not yuselim then begin
+               yuse = (yovi_lim[0] + ynv_lim[0])/2d
+               yuseerr = 0.1d
+               yuselim = 0b
+            endif
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,ynv_lim,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Down Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x,yovi_lim,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Down Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.15,0.15,0.95,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.05,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.7,0.95,0.95,0.7,0.7],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.7,0.7,0.95,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; vwtavg vs.
+; vwtavg OR vwtrms vs.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   chars=2.5
+
+   vlabs = ['vwtavg','vwtrms']
+   vtits = ['v$\down wtavg$ (km/s)','$\sigma$$\down rms$ (km/s)']
+   vrans = [[1000,-7000],[-100,3500]]
+
+   for vind=0,1 do begin
 
    xlab = 'lbol'
    xtit = 'log(L$\downbol$/L$\sun$)'
    xran = [11.2,13.2]
 
-   ylab = 'vwtavg'
-   ytit = 'Average depth-weighted velocity (km/s)'
-   yran = [1000,-9000]
+   ylab = vlabs[vind]
+   ytit = vtits[vind]
+   yran = vrans[*,vind]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,$
            color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = tabdat[xlab,iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
    xlab = 'luv'
-   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$) / erg s$\up-1$ ]'
-   xran = [42.5d,47d]
-
-   ylab = 'vwtavg'
-   ytit = 'Average depth-weighted velocity (km/s)'
-   yran = [1000,-9000]
+   xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$)/erg s$\up-1$]'
+   xran = [42.5d,46.99d]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,$
            color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = tabdat[xlab,iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   ;xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,yerr=yerr,/metro,$ ;xerr=xerr,
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         ;xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1548,22 +4059,92 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-2.199,-1.101]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,$
            color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      tabdat[xlab] ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      tabdat[xlab] ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = tabdat[xlab,iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   ;xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,yerr=yerr,/metro,$ ;xerr=xerr,
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         ;xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1573,22 +4154,92 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-0.799,0.199]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
-   cgplot,lirlbol,nv[ylab],xran=xran,yran=yran,$
-      psym=15,symsize=1,color='Red',ytit=ytit,$
-      err_ylow=nverr,err_yhi=nverr,$
-      position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,lirlbol,ovi[ylab],psym=9,symsize=1.5,$
-      color='Blue',$
-      err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lirlbol[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lirlbol[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lirlbol,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lirlbol,ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lirlbol ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lirlbol ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lirlbol ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = lirlbol[iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
@@ -1599,22 +4250,92 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-2,0]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-      charsize=1.75,default=4,/quiet
-   cgplot,lfirlbol,nv[ylab],xran=xran,yran=yran,$
-      psym=15,symsize=1,color='Red',ytit=ytit,$
-      err_ylow=nverr,err_yhi=nverr,$
-      position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,lfirlbol,ovi[ylab],psym=9,symsize=1.5,$
-      color='Blue',$
-      err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lfirlbol[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lfirlbol[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lfirlbol,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lfirlbol,ovi[ylab,*,0],psym=9,symsize=1.5,$
+           color='Blue',$
+           err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lfirlbol ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lfirlbol ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lfirlbol ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = lfirlbol[iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerr = dblarr(npts)+0.1d
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
@@ -1623,25 +4344,100 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
    xlab = 'agnfrac'
    xtit = 'AGN fraction'
-   xran = [0.7,1.05]
+   xran = [0.65,1.02]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,tabdat[xlab,inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,tabdat[xlab,iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,tabdat[xlab],nv[ylab,*,0],xran=xran,yran=yran,$
+      psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+      position=[0.25,0.15,0.99,0.95],$
+      err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+      err_xlo=tabdat[xlab]-tabdat[xlab+'lb'],$
+      err_xhi=tabdat[xlab+'ub'] - tabdat[xlab],/err_clip,$
+      xtickint=0.1d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=1,symsize=0.01,color='Grey',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=tabdat[xlab]-tabdat[xlab+'lb'],$
+      err_xhi=tabdat[xlab+'ub'] - tabdat[xlab],/err_clip
+   cgoplot,tabdat[xlab],nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,tabdat[xlab],ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+
+   ; NV + OVI stats
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND tabdat[xlab] ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND tabdat[xlab] ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND tabdat[xlab] ne bad,ctovidet)
+   npts = ctbothdet+ctnvdet +ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = tabdat[xlab,iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerravg = (-tabdat[xlab+'lb']+tabdat[xlab+'ub'])/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   redolinmix = 0b
+   ; special case; ngauss = 3 won't converge quickly for vwtrms
+   if vind eq 0 then ngauss = 3 else ngauss = 1
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=ngauss,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1649,24 +4445,100 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xlab = 'lagn'
    xtit = 'log(L$\downAGN$/L$\sun$)'
    xran = [11.301,12.799]
-
+   
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lagn,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,lagn,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lagn[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lagn[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+      charsize=chars,default=4,/quiet
+   cgplot,lagn,nv[ylab,*,0],xran=xran,yran=yran,$
+      psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+      position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+      err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+      err_xlo=lagn_errlo,$
+      err_xhi=lagn_errhi,/err_clip,err_color='Grey',xtickint=0.4d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lagn,ovi[ylab,*,0],psym=1,symsize=0.01,color='Blue',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=lagn_errlo,$
+      err_xhi=lagn_errhi,/err_clip,err_color='Grey'
+   cgoplot,lagn,nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,lagn,ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lagn ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lagn ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lagn ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = lagn[iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerravg = (lagn_errlo+lagn_errhi)/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1676,22 +4548,98 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [6.501,9.499]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lmbh,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,lmbh,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,lmbh[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,lmbh[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,lmbh,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+          err_xlo=lmbh_errlo,$
+          err_xhi=lmbh_errhi,/err_clip,err_color='Grey'
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,lmbh,ovi[ylab,*,0],psym=1,symsize=0.01,color='Blue',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=lmbh_errlo,$
+      err_xhi=lmbh_errhi,/err_clip,err_color='Grey'
+   cgoplot,lmbh,nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,lmbh,ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+
+   ibothdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] ne bad AND $
+      lmbh ne bad,ctbothdet)
+   invdet = where(nv[ylab,*,0] ne bad AND $
+      ovi[ylab,*,0] eq bad AND $
+      lmbh ne bad,ctnvdet)
+   iovidet = where(ovi[ylab,*,0] ne bad AND $
+      nv[ylab,*,0] eq bad AND $
+      lmbh ne bad,ctovidet)
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = lmbh[iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerravg = (lmbh_errlo+lmbh_errhi)/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 
@@ -1702,571 +4650,1285 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    xran = [-1.999,0.499]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,leddrat,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',ytit=ytit,$
-          err_ylow=nverr,err_yhi=nverr,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
-   cgoplot,leddrat,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue',$
-           err_ylow=ovierr,err_yhi=ovierr
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   cgoplot,leddrat[inv_nd],tmpy_nv,psym=15,symsize=1,color='Red'
-   cgoplot,leddrat[iovi_nd],tmpy_ovi,psym=9,symsize=1.5,color='Blue'
+             charsize=chars,default=4,/quiet
+   cgplot,leddrat,nv[ylab,*,0],xran=xran,yran=yran,$
+          psym=1,symsize=0.01,color='Grey',xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],$ ;,xtickform='(A1)',$
+          err_ylo=nv[ylab,*,1],err_yhi=nv[ylab,*,2],err_width=0d,$
+          err_xlo=leddrat_errlo,$
+          err_xhi=leddrat_errhi,/err_clip,err_color='Grey'
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   cgoplot,leddrat,ovi[ylab,*,0],psym=1,symsize=0.01,color='Blue',$
+      err_ylo=ovi[ylab,*,1],err_yhi=ovi[ylab,*,2],err_width=0d,$
+      err_xlo=leddrat_errlo,$
+      err_xhi=leddrat_errhi,/err_clip,err_color='Grey'
+   cgoplot,leddrat,nv[ylab,*,0],psym=15,symsize=1,color='Red'
+   cgoplot,leddrat,ovi[ylab,*,0],psym=9,symsize=1.5,color='Blue'
+
+   npts = ctbothdet + ctnvdet + ctovidet
+   iall = [ibothdet,invdet,iovidet]
+   xdat = leddrat[iall]
+   ydat = [(nv[ylab,ibothdet,0]+ovi[ylab,ibothdet,0])/2d,$
+      nv[ylab,invdet,0],ovi[ylab,iovidet,0]]
+   xerravg = (leddrat_errlo+leddrat_errhi)/2d
+   xerr = xerravg[iall]
+   ynverravg = (nv[ylab,*,1] + nv[ylab,*,2])/2d
+   yovierravg = (ovi[ylab,*,1] + ovi[ylab,*,2])/2d
+   ybotherravg = (ynverravg + yovierravg)/2d
+   yerr = [ybotherravg[ibothdet],ynverravg[invdet],yovierravg[iovidet]]
+   cens = [bytarr(ctbothdet)+1b,bytarr(ctnvdet)+1b,bytarr(ctovidet)+1b]
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 1b)
+   indet = where(cens eq 0b)
+   cgpolygon,[0.74,0.99,0.99,0.74,0.74],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.74,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   ;cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'nhxray'
-   xtit = 'log[ N(H, X-ray) / cm$\up-2$ ]'
-   xran = [19.001d,23.999d]
+   xtit = 'log[ N(H, X-ray) / cm$\up-2$]'
+   xran = [19.5d,24.5d]
+
+   openw,tmplun,plotdir+ylab+'_vs_'+xlab+'_dat.txt',/get_lun
+   printf,tmplun,'xdat','ydat','xerr','yerr','xl','yl',$
+      format='(4A8,2A3)'
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickf='(A1)'
+      charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+      position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
       if tabdat['n_xray',i] ge 1 then begin
          x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         inz = where(x gt 0 AND x ne bad,ctnz)
-         iz = where(x eq 0,ctz)
-         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
-         if ctz gt 0 then x[iz] = 20d
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+         xerrlo = tabdat[xlab+'_errlo',i,0:tabdat['n_xray',i]-1]
+         xerrhi = tabdat[xlab+'_errhi',i,0:tabdat['n_xray',i]-1]
+         x_lim = tabdat[xlab+'_lim',i,0:tabdat['n_xray',i]-1]
+         ynv = rebin([nv[ylab,i,0]],tabdat['n_xray',i])
+         ynv_errlo = rebin([nv[ylab,i,1]],tabdat['n_xray',i])
+         ynv_errhi = rebin([nv[ylab,i,2]],tabdat['n_xray',i])
+         yovi = rebin([ovi[ylab,i,0]],tabdat['n_xray',i])
+         yovi_errlo = rebin([ovi[ylab,i,1]],tabdat['n_xray',i])
+         yovi_errhi = rebin([ovi[ylab,i,2]],tabdat['n_xray',i])
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x_lim,ynv,symsize=1.5,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            psym='Filled Left Triangle',/err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
+         cgoplot,x_lim,yovi,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            psym='Open Left Triangle',/err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
-         if ctz gt 0 then begin
-            cgoplot,x[iz]-0.05d,ynv[iz],psym=13,symsize=2,color='Red',$
-                    err_ylow=ynverr[iz],err_yhi=ynverr[iz]
-            cgoplot,x[iz]-0.05d,yovi[iz],psym=13,symsize=2,color='Blue',$
-                    err_ylow=ynverr[iz],err_yhi=ynverr[iz]
+
+         ; this assumes all X-ray obs. for an object are either detections or limits
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         yuselim = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+            xuselim = 0b
+         endif else if x_lim[0] ne bad then begin
+            xuse = mean(x_lim[0])
+            xuseerr = 0.3d ; assume factor-of-2 error on limit
+            xuselim = 1b
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad AND nodat_nv then begin
+            yuse = yovi[0]
+            yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_ovi OR not nodat_nv then begin
+            printf,tmplun,xuse,yuse,xuseerr,yuseerr,xuselim,yuselim,$
+               format='(D8.4,D12.2,D8.4,D7.3,I3,I3)'
+            xdat = [xdat, xuse]
+            ydat = [ydat, yuse]
+            cens = [cens, xuselim]
          endif
       endif
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 15d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shifty = (randomu(seed)+0.5d)
-         shiftx = (randomu(seed)-0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shifty
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shifty
-         inz = where(x gt 0 AND x ne bad,ctnz)
-         iz = where(x eq 0,ctz)
-         if ctnz gt 0 then x[inz] = alog10(x[inz])+22d
-         if ctz gt 0 then x[iz] = 20d + shiftx
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-            if ctz gt 0 then $
-               cgoplot,x[iz]-0.07d,ynv[iz],psym=13,symsize=2,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-            if ctz gt 0 then $
-               cgoplot,x[iz]-0.07d,yovi[iz],psym=13,symsize=2,color='Blue'
-         endif
-       endif 
-   endfor
+
+   readcol,plotdir+ylab+'_vs_'+xlab+'_stat.txt',cc,pval,skip=1,/silent,$
+      format='(D,D)'
+   ; translate pymcc results to LINMIX_ERR results
+   pval[0] = pval[1]
+   pval[1] = 0
+   corr = dblarr(3)
+   corr[0] = cc[1]
+   corr[1] = cc[1]-cc[0]
+   corr[2] = cc[2]-cc[1]
+   xloc = xran[0]+0.45*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[1],'  r=',cc[1],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(cc[1]-cc[0],format='(D0.2)')+'}^{+'+$
+      string(cc[2]-cc[1],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   idet = where(cens eq 0b)
+   indet = where(cens eq 1b)
+   cgpolygon,[0.25,0.5,0.5,0.25,0.25],[0.7,0.7,0.95,0.95,0.7],$
+      /fill,fcol='white',/norm
+   cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
+      pos=[0.25,0.7,0.5,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      xticks=1,yticks=1,xminor=1,yminor=1
+   cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
    cgps_close
 
+   free_lun,tmplun
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
    xlab = 'gamxray'
    xtit = '$\Gamma$ (X-ray)'
    xran = [1,3.499]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
 
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'fsoftxray'
-   xtit = 'log[ F(0.5-2 keV) / erg s$\up-1$ cm$\up-2$ ]'
-   xran = [-14,-10.001]
+   xtit = 'log[F(0.5-2 keV)/erg s$\up-1$ cm$\up-2$]'
+   xran = [-13.99,-10.001]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'fhardxray'
-   xtit = 'log[ F(2-10 keV) / erg s$\up-1$ cm$\up-2$ ]'
-   xran = [-13,-9.8]
+   xtit = 'log[F(2-10 keV)/erg s$\up-1$ cm$\up-2$]'
+   xran = [-13.3,-9.8]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95],xtickint=1d
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])-12d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lsoftxray'
-   xtit = 'log[ L(0.5-2 keV) / erg s$\up-1$ ]'
+   xtit = 'log[L(0.5-2 keV)/erg s$\up-1$]'
    xran = [42,45.999]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lhardxray'
-   xtit = 'log[ L(2-10 keV) / erg s$\up-1$ ]'
+   xtit = 'log[L(2-10 keV)/erg s$\up-1$]'
    xran = [42.25,46.25]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1] - 0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'ltotxray'
-   xtit = 'log[ L(0.5-10 keV) / erg s$\up-1$ ]'
+   xtit = 'log[L(0.5-10 keV)/erg s$\up-1$]'
    xran = [42.5,46.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = alog10(tabdat[xlab,i,0:tabdat['n_xray',i]-1])+44d
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lsoftratxray'
    xtit = 'L(0.5-2 keV) / L(0.5-10 keV)'
-   xran = [0.1,0.9]
+   xran = [-0.8d,0d]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_err',i,igdx]
+         xerrhi = tabdat[xlab+'_err',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
+
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lxlbol'
-   xtit = 'log[ L(0.5-10 keV) / L$\downbol$ ]'
+   xtit = 'log[L(0.5-10 keV) / L$\downbol$]'
    xran = [-3.3,-0.3]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,[0],/nodat,xran=xran,yran=yran,ytit=ytit,$
-          position=[0.19,0.25,0.99,0.95],xtickform='(A1)'
+             charsize=chars,default=4,/quiet
+   cgplot,[0],/nodat,xran=xran,yran=yran,xtit=xtit,$
+          position=[0.25,0.15,0.99,0.95]
+   cgtext,ytit,0.07,0.55,/norm,align=0.5,orient=90d
+   xdat = !NULL
+   ydat = !NULL
+   xerr = !NULL
+   yerr = !NULL
+   cens = !NULL
    for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])
-         ynverr = rebin([nverr[i]],tabdat['n_xray',i])
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])
-         yovierr = rebin([ovierr[i]],tabdat['n_xray',i])
-         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_ylow=ynverr,$
-                 err_yhi=ynverr
+      igdx = where(tabdat[xlab,i,0:tabdat['n_xray',i]-1] ne bad,ngdx)
+      if ngdx gt 0 then begin
+         x = tabdat[xlab,i,igdx]
+         xerrlo = tabdat[xlab+'_errlo',i,igdx]
+         xerrhi = tabdat[xlab+'_errhi',i,igdx]
+         ynv = rebin([nv[ylab,i,0]],ngdx)
+         ynv_errlo = rebin([nv[ylab,i,1]],ngdx)
+         ynv_errhi = rebin([nv[ylab,i,2]],ngdx)
+         yovi = rebin([ovi[ylab,i,0]],ngdx)
+         yovi_errlo = rebin([ovi[ylab,i,1]],ngdx)
+         yovi_errhi = rebin([ovi[ylab,i,2]],ngdx)
+
+         ; this assumes all X-ray obs. for an object are detections
+         nodat_nv = 0b
+         nodat_ovi = 0b
+         if x[0] ne bad then begin
+            xuse = mean(x)
+            xuseerr = (mean(xerrlo) + mean(xerrhi)) / 2d
+         endif else begin
+            nodat_nv=1b
+            nodat_ovi=1b
+         endelse
+         if ynv[0] ne bad then begin
+            yuse = ynv[0]
+            yuseerr = (ynv_errlo[0]+ynv_errhi[0])/2d
+            yuselim = 1b
+         endif else begin
+            nodat_nv = 1b
+         endelse
+         if yovi[0] ne bad then begin
+            if nodat_nv then begin
+               yuse = yovi[0]
+               yuseerr = (yovi_errlo[0]+yovi_errhi[0])/2d
+               yuselim = 1b
+            endif else begin
+               yuse = (ynv[0] + yovi[0])/2d
+               yuseerr = (yuseerr + (yovi_errlo[0]+yovi_errhi[0])/2d)/2d
+            endelse
+         endif else begin
+            nodat_ovi = 1b
+         endelse
+         if not nodat_nv OR not nodat_ovi then begin
+            xdat = [xdat,xuse]
+            xerr = [xerr,xuseerr]
+            ydat = [ydat,yuse]
+            yerr = [yerr,yuseerr]
+            cens = [cens,yuselim]
+         endif
+
+         cgoplot,x,ynv,psym=15,symsize=1,color='Red',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=ynv_errlo,err_yhi=ynv_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,ynv,/linesty,color='Red'
-         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_ylow=yovierr,$
-                 err_yhi=yovierr
+         cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue',err_xlo=xerrlo,$
+            err_xhi=xerrhi,err_ylo=yovi_errlo,err_yhi=yovi_errhi,err_width=0d,$
+            /err_clip
          cgoplot,x,yovi,/linesty,color='Blue'
+
       endif
+
    endfor
-   cgoplot,xran,[0,0],/linesty
-   cgplot,[0],/nodat,xran=xran,yran=[0.3d99,1.7d99],xtit=xtit,$
-          position=[0.19,0.15,0.99,0.25],/noerase,/xsty,/ysty,$
-          yticks=1,ytickf='(A1)'
-   cgtext,0.09,0.19,'Undet.',chars=1.5,/norm
-   seed = 5d
-   for i=0,ncos-1 do begin
-      if tabdat['n_xray',i] ge 1 then begin
-         x = tabdat[xlab,i,0:tabdat['n_xray',i]-1]
-         shift = (randomu(seed)+0.5d)
-         ynv = rebin([nv[ylab,i]],tabdat['n_xray',i])*shift
-         yovi = rebin([ovi[ylab,i]],tabdat['n_xray',i])*shift
-         if tabdat['nvstatus',i] ne 'X' then begin
-            cgoplot,x,ynv,psym=15,symsize=1,color='Red'
-            cgoplot,x,ynv,/linesty,color='Red'
-         endif
-         if tabdat['ovistatus',i] ne 'X' then begin
-            cgoplot,x,yovi,psym=9,symsize=1.5,color='Blue'
-            cgoplot,x,yovi,/linesty,color='Blue'
-         endif
-       endif 
-   endfor
+
+   ; NV + OVI stats
+   redolinmix = 0b
+   if redolinmix then begin
+      fitout = drt_runlinmix(xdat,ydat,xerr=xerr,yerr=yerr,/metro,$
+         alpha=alpha,beta=beta,corr=corr,sigsqr=sigsqr,pval=pval,$
+         miniter=lm_miniter,maxiter=lm_maxiter,detected=cens,ngauss=1,/verbose)
+      linmixpar = {alpha:alpha,$
+         beta:beta,$
+         corr:corr,$
+         sigsqr:sigsqr,$
+         nfit:npts,$
+         pval:pval,$
+         xdat:xdat,$
+         ydat:ydat,$
+         xerr:xerr,$
+         yerr:yerr,$
+         yfit:fitout[*,0],$
+         yfitlo:fitout[*,1],$
+         yfithi:fitout[*,2],$
+         yfit2lo:fitout[*,3],$
+         yfit2hi:fitout[*,4]}
+      save,linmixpar,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+   endif else begin
+      restore,file=plotdir+ylab+'_vs_'+xlab+'_NVOVI.xdr'
+      pval = linmixpar.pval
+      corr = linmixpar.corr
+   endelse
+
+   xloc = xran[0]+0.05*(xran[1]-xran[0])
+   yloc = yran[1]-0.05*(yran[1]-yran[0])
+   lab = string('p=',pval[0],'  r=',corr[0],$
+      format='(A0,D0.3,A0,D0.2)')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
+      string('  N=',n_elements(xdat),format='(A0,I0)')
+   cgtext,xloc,yloc,lab,/dat,chars=1.25
+
+   cgplot,xdat,ydat,psym=16,symsize=1,color='Black',/noerase,$
+      pos=[0.75,0.7,0.99,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      background='White'
+
    cgps_close
 
+   if pval[0] lt tpval then begin
+      printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform
+   endif else begin
+      printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
+         n_elements(xdat),format=statform  
+   endelse
+
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+   endfor
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; vwtrms vs.
+; vwtrms vs. vwtavg
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   xlab = 'lbol'
-   xtit = 'log(L$\downbol$/L$\sun$)'
-   xran = [11.2,13.2]
+   xlab = 'vwtavg'
+   xtit = 'Average depth-weighted velocity (km/s)'
+   xran = [1000,-9000]
 
    ylab = 'vwtrms'
    ytit = 'Average depth-weighted velocity RMS (km/s)'
    yran = [0,3500]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
+             charsize=chars,default=4,/quiet
+   cgplot,nv[xlab,0],nv[ylab,0],xran=xran,yran=yran,$
+          psym=15,symsize=1,color='Red',ytit=ytit,xtit=xtit,$
+          position=[0.18,0.18,0.98,0.98]
+   cgoplot,ovi[xlab,0],ovi[ylab,0],psym=9,symsize=1.5,$
            color='Blue'
+   ;cgoplot,xran,yran,/linesty
    cgps_close
-
-
-
-   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   xlab = 'agnfrac'
-   xtit = 'AGN fraction'
-   xran = [0.7,1.05]
-
-   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,tabdat[xlab],nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,tabdat[xlab],ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgps_close
-
-   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   xlab = 'lagn'
-   xtit = 'log(L$\downAGN$/L$\sun$)'
-   xran = [11.3,12.8]
-
-   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lagn,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,lagn,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgps_close
-
-   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   xlab = 'lmbh'
-   xtit = 'log(M$\downBH$/M$\sun$)'
-   xran = [6.5,9.5]
-
-   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,lmbh,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,lmbh,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgps_close
-
-
-   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   xlab = 'leddrat'
-   xtit = 'Eddington Ratio'
-   xran = [-2,0.5]
-
-   cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
-             charsize=1.75,default=4,/quiet
-   cgplot,leddrat,nv[ylab],xran=xran,yran=yran,$
-          psym=15,symsize=1,color='Red',xtit=xtit,ytit=ytit
-   cgoplot,leddrat,ovi[ylab],psym=9,symsize=1.5,$
-           color='Blue'
-   cgps_close
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -2728,19 +6390,27 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    ianytotlbol2 = cgsetintersection(ianytot,where(tabdat['lbol'] lt 12),count=ctanytotlbol2)
 
 ;  this assumes all X-ray measurements for a source are either N_H = 0 OR N_H > 0
-   invtotnhnz = cgsetintersection(invtot,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctnvtotnhnz)
-   iovitotnhnz = cgsetintersection(iovitot,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctovitotnhnz)
-   ibothtotnhnz = cgsetintersection(ibothtot,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctbothtotnhnz)
-   ianytotnhnz = cgsetintersection(ianytot,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctanytotnhnz)
+   invtotnhnz = cgsetintersection(invtot,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctnvtotnhnz)
+   iovitotnhnz = cgsetintersection(iovitot,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctovitotnhnz)
+   ibothtotnhnz = cgsetintersection(ibothtot,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctbothtotnhnz)
+   ianytotnhnz = cgsetintersection(ianytot,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctanytotnhnz)
 
-   invtotnhz = cgsetintersection(invtot,where(tabdat['nhxray',*,0] eq 0),count=ctnvtotnhz)
-   iovitotnhz = cgsetintersection(iovitot,where(tabdat['nhxray',*,0] eq 0),count=ctovitotnhz)
-   ibothtotnhz = cgsetintersection(ibothtot,where(tabdat['nhxray',*,0] eq 0),count=ctbothtotnhz)
-   ianytotnhz = cgsetintersection(ianytot,where(tabdat['nhxray',*,0] eq 0),count=ctanytotnhz)
+   invtotnhz = cgsetintersection(invtot,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctnvtotnhz)
+   iovitotnhz = cgsetintersection(iovitot,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctovitotnhz)
+   ibothtotnhz = cgsetintersection(ibothtot,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctbothtotnhz)
+   ianytotnhz = cgsetintersection(ianytot,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctanytotnhz)
 
    invtotaox1 = cgsetintersection(invtot,where(tabdat['alphaox'] ge -1.6$
       AND tabdat['alphaox'] ne bad),count=ctnvtotaox1)
@@ -2787,19 +6457,27 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    ibothlbol2 = cgsetintersection(iboth,where(tabdat['lbol'] lt 12),count=ctbothlbol2)
    ianylbol2 = cgsetintersection(iany,where(tabdat['lbol'] lt 12),count=ctanylbol2)
 
-   invnhnz = cgsetintersection(inv,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctnvnhnz)
-   iovinhnz = cgsetintersection(iovi,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctovinhnz)
-   ibothnhnz = cgsetintersection(iboth,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctbothnhnz)
-   ianynhnz = cgsetintersection(iany,where(tabdat['nhxray',*,0] gt 0 $
-                                               AND tabdat['nhxray',*,0] ne bad),count=ctanynhnz)
+   invnhnz = cgsetintersection(inv,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctnvnhnz)
+   iovinhnz = cgsetintersection(iovi,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctovinhnz)
+   ibothnhnz = cgsetintersection(iboth,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctbothnhnz)
+   ianynhnz = cgsetintersection(iany,where((tabdat['nhxray',*,0] gt 22d AND $
+      tabdat['nhxray',*,0] ne bad) OR (tabdat['nhxray_lim',*,0] gt 22d AND $
+      tabdat['nhxray_lim',*,0] ne bad)),count=ctanynhnz)
 
-   invnhz = cgsetintersection(inv,where(tabdat['nhxray',*,0] eq 0),count=ctnvnhz)
-   iovinhz = cgsetintersection(iovi,where(tabdat['nhxray',*,0] eq 0),count=ctovinhz)
-   ibothnhz = cgsetintersection(iboth,where(tabdat['nhxray',*,0] eq 0),count=ctbothnhz)
-   ianynhz = cgsetintersection(iany,where(tabdat['nhxray',*,0] eq 0),count=ctanynhz)
+   invnhz = cgsetintersection(inv,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctnvnhz)
+   iovinhz = cgsetintersection(iovi,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctovinhz)
+   ibothnhz = cgsetintersection(iboth,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctbothnhz)
+   ianynhz = cgsetintersection(iany,where(tabdat['nhxray',*,0] le 22d OR $
+      tabdat['nhxray_lim',*,0] le 22d),count=ctanynhz)
 
    invaox1 = cgsetintersection(inv,where(tabdat['alphaox'] ge -1.6$
       AND tabdat['alphaox'] ne bad),count=ctnvaox1)
@@ -2837,6 +6515,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
    z = DINDGEN(10000)*0.0001d
    c = 0.683d
+   ;c = 0.954d
 
 ;  All Quasars
 
@@ -2958,7 +6637,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
 ;  N_H > 0
 
-   printf,lun_tmp,'\cutinhead{$N_{\rm H}$ $>$ 0}'
+   printf,lun_tmp,'\cutinhead{$N_{\rm H}$ $>$ $10^{22}$ cm$^{-2}$}'
    plu = betaprob(c,ctnvnhnz,ctnvtotnhnz,z)
    printf,lun_tmp,'N V',amp,ctnvnhnz,amp,ctnvtotnhnz,amp,$
           double(ctnvnhnz)/double(ctnvtotnhnz),$
@@ -2982,7 +6661,7 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
 ;  N_H = 0
 
-   printf,lun_tmp,'\cutinhead{$N_{\rm H}$ $=$ 0}'
+   printf,lun_tmp,'\cutinhead{$N_{\rm H}$ $\leq$ $10^{22}$ cm$^{-2}$}'
    plu = betaprob(c,ctnvnhz,ctnvtotnhz,z)
    printf,lun_tmp,'N V',amp,ctnvnhz,amp,ctnvtotnhz,amp,$
           double(ctnvnhz)/double(ctnvtotnhz),$
@@ -3107,27 +6786,64 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
 
    openw,lun_tmp,tabdir+'tab_fitresults.tex',/get_lun
    
+   lerr0 = '$_{-'
+   lerr1 = '}^{+'
+   lerr2 = '}$'
    for i=0,ncos-1 do begin
       
       labprint=0b
       if tabdat['nvstatus',i] eq 'F' OR tabdat['nvstatus',i] eq 'GF' then begin
-         printf,lun_tmp,tabdat['gal',i],amp,'N~V',amp,nv['weq_A',i],amp,$
-            nv['vwtavg',i],amp,nv['vwtrms',i],amp,nv['ncomp',i],dslash,$
-            format='(A12,A3,A5,A3,D6.2,A3,D9.2,A3,D8.2,A3,I3,A3)'
+         printf,lun_tmp,tabdat['gal',i],amp,'N~V',amp,nv['weq_A',i,0],$
+            lerr0,nv['weq_A',i,1],lerr1,nv['weq_A',i,2],lerr2,amp,$
+            nv['vwtavg',i,0],lerr0,nv['vwtavg',i,1],lerr1,nv['vwtavg',i,2],lerr2,$
+            amp,nv['vwtrms',i],lerr0,nv['vwtrms',i,1],lerr1,nv['vwtrms',i,2],lerr2,$
+            amp,nv['ncomp',i],dslash,$
+            format='(A12,A3,A5,A3,'+$
+            'D6.2,A0,D-5.3,A0,D-5.3,A0,A3,'+$
+            'D7.1,A0,D-5.1,A0,D-5.1,A0,A3,'+$
+            'D7.1,A0,D-5.1,A0,D-5.1,A0,A3,'+$
+            'I3,A3)'
+         labprint=1b
+      endif else if nv['weq_lim_A',i] ne bad then begin
+         if labprint then labtmp = '' else labtmp = tabdat['gal',i]
+         printf,lun_tmp,labtmp,amp,'N~V',amp,'$<$',nv['weq_lim_A',i],$
+            amp,amp,amp,dslash,$
+            format='(A12,A3,A5,A3,A3,D0.2,4A3)'
          labprint=1b
       endif
       if tabdat['ovistatus',i] eq 'F' OR tabdat['ovistatus',i] eq 'GF' then begin
          if labprint then labtmp = '' else labtmp = tabdat['gal',i]
-         printf,lun_tmp,labtmp,amp,'O~VI',amp,ovi['weq_A',i],amp,$
-            ovi['vwtavg',i],amp,ovi['vwtrms',i],amp,ovi['ncomp',i],dslash,$
-            format='(A12,A3,A5,A3,D6.2,A3,D9.2,A3,D8.2,A3,I3,A3)'
+         printf,lun_tmp,labtmp,amp,'O~VI',amp,ovi['weq_A',i,0],$
+            lerr0,ovi['weq_A',i,1],lerr1,ovi['weq_A',i,2],lerr2,amp,$
+            ovi['vwtavg',i,0],lerr0,ovi['vwtavg',i,1],lerr1,ovi['vwtavg',i,2],lerr2,$
+            amp,ovi['vwtrms',i],lerr0,ovi['vwtrms',i,1],lerr1,ovi['vwtrms',i,2],lerr2,$
+            amp,ovi['ncomp',i],dslash,$
+            format='(A12,A3,A5,A3,'+$
+            'D6.2,A0,D-5.3,A0,D-5.3,A0,A3,'+$
+            'D7.1,A0,D-5.1,A0,D-5.1,A0,A3,'+$
+            'D7.1,A0,D-5.1,A0,D-5.1,A0,A3,'+$
+            'I3,A3)'
+         labprint=1b
+      endif else if ovi['weq_lim_A',i] ne bad then begin
+         if labprint then labtmp = '' else labtmp = tabdat['gal',i]
+         printf,lun_tmp,labtmp,amp,'O~VI',amp,'$<$',ovi['weq_lim_A',i],$
+            amp,amp,amp,dslash,$
+            format='(A12,A3,A5,A3,A3,D0.2,4A3)'
          labprint=1b
       endif
+
       if pv['ncomp',i] ne 0 then begin
          if labprint then labtmp = '' else labtmp = tabdat['gal',i]
-         printf,lun_tmp,labtmp,amp,'P~V',amp,pv['weq_A',i],amp,$
-            pv['vwtavg',i],amp,pv['vwtrms',i],amp,pv['ncomp',i],dslash,$
-            format='(A12,A3,A5,A3,D6.2,A3,D9.2,A3,D8.2,A3,I3,A3)'
+         printf,lun_tmp,labtmp,amp,'P~V',amp,pv['weq_A',i,0],$
+            lerr0,pv['weq_A',i,1],lerr1,pv['weq_A',i,2],lerr2,amp,$
+            pv['vwtavg',i,0],lerr0,pv['vwtavg',i,1],lerr1,pv['vwtavg',i,2],lerr2,$
+            amp,pv['vwtrms',i],lerr0,pv['vwtrms',i,1],lerr1,pv['vwtrms',i,2],lerr2,$
+            amp,pv['ncomp',i],dslash,$
+            format='(A12,A3,A5,A3,'+$
+            'D6.2,A0,D-5.3,A0,D-5.3,A0,A3,'+$
+            'D7.1,A0,D-5.1,A0,D-5.1,A0,A3,'+$
+            'D7.1,A0,D-5.1,A0,D-5.1,A0,A3,'+$
+            'I3,A3)'
       endif
       
    endfor
@@ -3141,13 +6857,30 @@ for i=0,ctovi_nd-1 do tmpy_ovi[i] *= randomu(seed)+0.5d
    printf,lun_tmp,'#Col 2: log(Lbol/Lsun) [corrected to cosmology for paper]
    printf,lun_tmp,'#Col 3: log(LIR/Lsun) [corrected to cosmology for paper]
    printf,lun_tmp,'#Col 4: log(lam L_lam) at 1125 A; 1.5% bandpass; corrected for Gal. extinction
-   printf,lun_tmp,'#Col 5: log(MBH/Msun)
-   printf,lun_tmp,'#Col 6: log(Edd.rat.)
+   printf,lun_tmp,'#Col 5: AGNfraction_error_low^error_hi
+   printf,lun_tmp,'#Col 6: log(MBH/Msun)_error_low^error_hi
+   printf,lun_tmp,'#Col 7: log(Edd.rat.)_error_low^error_hi
    for i=0,ncos-1 do begin
+      if tabdatagnfrac[i] eq bad then $
+         agnfracstring = '1\tablenotemark{a}' $
+      else $
+         agnfracstring = string(tabdat['agnfrac',i],'$_{-',$
+         tabdat['agnfrac',i]-tabdat['agnfraclb',i],'}^{+',$
+         tabdat['agnfracub',i]-tabdat['agnfrac',i],'}$',$
+         format='(D0.3,A0,D0.3,A0,D0.3,A0)')
       printf,lun_tmp,tabdat['gal',i],tabdat['lbol',i],tabdat['lir',i],$
-         tabdat['luv',i],lmbh[i],leddrat[i],format='(A-12,D8.2,D8.2,D8.2,D8.2,D8.2)'
+         tabdat['luv',i],$
+         agnfracstring,$
+         string(lmbh[i],'$_{-',lmbh_errlo[i],'}^{+',$
+         lmbh_errhi[i],'}$',format='(D0.2,A0,D0.2,A0,D0.2,A0)'),$
+         string(leddrat[i],'$_{-',leddrat_errlo[i],'}^{+',$
+         leddrat_errhi[i],'}$',format='(D0.2,A0,D0.2,A0,D0.2,A0)'),$
+         format='(A-12,3D8.2,A28,2A25)'
    endfor
 
    free_lun,lun_tmp
+
+;  free up stats table
+   free_lun,lun_stat
 
 end

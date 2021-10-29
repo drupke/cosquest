@@ -139,6 +139,7 @@ FUNCTION cos_pg1617nv, directoryname, gal, zgal, profileshifts, $
       fitindex:linefitind,$
       fcnfitdoublet: 'ifsf_doubletfcn',$
       fcninitpar: 'ifsf_initdoublet',$
+      argslinelist: {vacuum:1b},$
 ;
       maxncomp: comps,$
 ;
@@ -152,6 +153,7 @@ FUNCTION cos_pg1617nv, directoryname, gal, zgal, profileshifts, $
 ;
       ndoubletem: 0,$
 ;      taumax: 10d, $
+      cfcorr: 0b,$
 ;
       galaxy: gal, $
       zsys_gas: zgal,$

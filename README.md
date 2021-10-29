@@ -1,8 +1,10 @@
+
 -------------------------------------------------------------------------
 OVERVIEW
 -------------------------------------------------------------------------
 
-Routines for COS QUEST paper.
+Routines for paper on COS observations of PG quasars from QUEST
+sample: Veilleux et al. 2021, ApJ
 
 -------------------------------------------------------------------------
 REQUIREMENTS
@@ -11,25 +13,13 @@ REQUIREMENTS
 IDL v8.0 or higher (tested with v8.3)
 
 IDL libraries:
-- IDL Astronomy User's Library, for various routines
+- IDL Astronomy User's Library
   http://idlastro.gsfc.nasa.gov
-- MPFIT, for non-linear least-squares fitting
-  http://www.physics.wisc.edu/~craigm/idl/idl.html
-- Coyote, for graphics
-  http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
-  [or from the subversion repository: https://code.google.com/p/idl-coyote/]
-- PPXF
-  http://www-astro.physics.ox.ac.uk/~mxc/software/#ppxf
-- IDLUTILS, primarily for structure manipulation tasks (e.g.,
-  STRUCT_ADDTAGS).
-  http://www.sdss3.org/dr8/software/idlutils.php
+- Coyote Graphics Library
+  https://github.com/idl-coyote/coyote
 
 Note that the IDL Astronomy User's Library ships with some Coyote
-routines, and IDLUTILS ships with the IDL Astronomy User's Library and
-MPFIT. However, it's not clear how well these libraries keep track of
-each other, so it may be preferable to download each package
-separately and delete the redundant routines that ship within other
-packages.
+routines.
 
 -------------------------------------------------------------------------
 QUESTIONS? BUGS? WANT TO MODIFY THE CODE?
@@ -44,7 +34,7 @@ Modifications are encouraged, but subject to the license.
 LICENSE AND COPYRIGHT
 -------------------------------------------------------------------------
 
-Copyright (C) 2013--2016 Anthony D. To, David S. N. Rupke
+Copyright (C) 2013--2021 Anthony D. To, David S. N. Rupke
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

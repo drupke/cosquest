@@ -153,6 +153,7 @@ goodind = [[1130,1133],[1136,1144],[1146,1152],[1153.5,1160],$
       fitindex:linefitind,$
       fcnfitdoublet: 'ifsf_doubletfcn',$
       fcninitpar: 'ifsf_initdoublet',$
+      argslinelist: {vacuum:1b},$
 ;
       maxncomp: comps,$
 ;
@@ -165,6 +166,7 @@ goodind = [[1130,1133],[1136,1144],[1146,1152],[1153.5,1160],$
       doubletabs_fix: doubletabs_fix,$
 ;
       ndoubletem: 0,$
+         cfcorr: 0b,$
 ;
       galaxy: gal, $
       zsys_gas: zgal,$
