@@ -87,6 +87,16 @@ pro cos_corr
    linelist = ifsf_linelist(['OVI1031','OVI1037','NV1238','NV1242',$
       'PV1117','PV1128'],vacuum=1b)
 
+;  for tables
+   lerr0 = '$_{-'
+   lerr1 = '}^{+'
+   lerr2 = '}$'
+   amp = '&'
+   dslash = '\\'
+   ndat = '\nodata'
+   lineofdashes = strjoin(replicate('-',62))
+
+
 ;  Read table
    rows=[3,85]
    gal = read_csvcol(qsotab,'A',rows=rows,sep=',',type='string')
@@ -917,10 +927,22 @@ openw,lun_stat,tabdir+'tab_regressions.txt',/get_lun
 printf,lun_stat,'#Col 1: x-axis quantity'
 printf,lun_stat,'#Col 2: y-axis quantity'
 printf,lun_stat,'#Col 3-4: p, lower limit flag'
-printf,lun_stat,'#Col 6-8: r, +/- error'
+printf,lun_stat,'#Col 6-8: r, -/+ error'
 printf,lun_stat,'#Col 9: no. of points'
-statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
+statform = '(A10,A10,D7.3,I2,3D6.2,I3)'
 
+openw,lun_reg_tex,tabdir+'tab_regressions.tex',/get_lun
+tweq = '$W_{\rm eq}$'
+tvel = ['$v_{\rm wtavg}$','$\sigma_{\rm rms}$']
+regtexform = '(A20,A3,A70,A3,I3,A3,D7.3,A3,'+$
+   'D6.2,A0,D-4.2,A0,D-4.2,A0,A3)'
+bregtexform = '(A20,A3,A11,A58,A1,A3,I3,A3,D7.3,A3,'+$
+      'D6.2,A0,D-4.2,A0,D-4.2,A0,A3)'
+regtexform_pvallim = '(A20,A3,A70,A3,I3,A3,A3,D-5.3,A2,'+$
+   'D6.2,A0,D-4.2,A0,D-4.2,A0,A3)'
+bregtexform_pvallim = '(A20,A3,A11,A58,A1,A3,I3,A3,A3,D-5.3,A2,'+$
+      'D6.2,A0,D-4.2,A0,D-4.2,A0,A3)'
+   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'z'
@@ -1302,6 +1324,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lbol'
    xtit = 'log(L$\downbol$/L$\sun$)'
+   xtex = 'log($L_{\rm BOL}/L_\sun$)'
    xran = [11.2,13.2]
 
    ylab = 'weq'
@@ -1412,9 +1435,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -1424,6 +1451,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'luv'
    xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$)/erg s$\up-1$]'
+   xtex = 'log[$\lambda L_{1125}/{\rm erg~s}^{-1}$]'
    xran = [42.5d,47d]
 
 
@@ -1533,9 +1561,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -1544,6 +1576,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'agnfrac'
    xtit = 'AGN fraction'
+   xtex = xtit
    xran = [0.65,1.02]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -1665,9 +1698,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -1676,6 +1713,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lagn'
    xtit = 'log(L$\downAGN$/L$\sun$)'
+   xtex = 'log($L_{\rm AGN}/L_\sun$)'
    xran = [11.301,12.799]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -1797,9 +1835,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -1808,6 +1850,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lmbh'
    xtit = 'log(M$\downBH$/M$\sun$)'
+   xtex=  'log($M_{\rm BH}/M_\sun$)'
    xran = [6.5,9.5]
 
 
@@ -1930,9 +1973,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -1942,6 +1989,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'leddrat'
    xtit = 'Eddington Ratio'
+   xtex = xtit
    xran = [-2,0.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -2063,9 +2111,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -2075,6 +2127,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'alphaox'
    xtit = '$\alpha$$\downox$'
+   xtex = '$\alpha_{\rm OX}$
    xran = [-2.2,-1.1]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -2181,9 +2234,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -2192,6 +2249,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lirlbol'
    xtit = 'log(L$\downIR$/L$\downbol$)'
+   xtex = 'log($L_{\rm IR}/L_{\rm BOL}$)'
    xran = [-0.799,0.199]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -2298,9 +2356,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -2309,6 +2371,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lfirlbol'
    xtit = 'log(L$\downFIR$/L$\downbol$)'
+   xtex = 'log($L_{\rm FIR}/L_{\rm BOL}$)'
    xran = [-2,0]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -2415,9 +2478,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -2426,6 +2493,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'nhxray'
    xtit = 'log[ N(H, X-ray) / cm$\up-2$]'
+   xtex = 'log[$N({\rm H})/{\rm cm}^{-2}$]'
    xran = [19.5d,24.5d]
 
    openw,tmplun,plotdir+ylab+'_vs_'+xlab+'_dat.txt',/get_lun
@@ -2544,21 +2612,29 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
       endif
    endfor
 
-   readcol,plotdir+ylab+'_vs_'+xlab+'_stat.txt',cc,pval,skip=1,/silent,$
-      format='(D,D)'
+   readcol,plotdir+ylab+'_vs_'+xlab+'_stat.txt',cc,pval,pvaldist,skip=1,/silent,$
+      format='(D,D,A)'
    ; translate pymcc results to LINMIX_ERR results
-   pval[0] = pval[1]
-   pval[1] = 0
+   pval[0] = double(pvaldist[0])
+   if pvaldist[1] eq 'True' then begin
+      pval[1] = 1b
+      pvalstr = 'p<'
+      pvallimstr = '$<$'
+   endif else begin
+      pval[1] = 0b
+      pvalstr = 'p='
+      pvallimstr = ''
+   endelse
    corr = dblarr(3)
    corr[0] = cc[1]
    corr[1] = cc[1]-cc[0]
    corr[2] = cc[2]-cc[1]
    xloc = xran[0]+0.35*(xran[1]-xran[0])
    yloc = yran[1] - 0.05*(yran[1]-yran[0])
-   lab = string('p=',pval[1],'  r=',cc[1],$
+   lab = string(pvalstr,pval[0],'  r=',corr[0],$
       format='(A0,D0.3,A0,D0.2)')+$
-      textoidl('_{-'+string(cc[1]-cc[0],format='(D0.2)')+'}^{+'+$
-      string(cc[2]-cc[1],format='(D0.2)')+'}')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
       string('  N=',n_elements(xdat),format='(A0,I0)')
    cgtext,xloc,yloc,lab,/dat,chars=1.25
 
@@ -2575,9 +2651,14 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),$
+         amp,pvallimstr,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform_pvallim
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
-         n_elements(xdat),format=statform  
+         n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pvallimstr,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform_pvallim
    endelse
 
    cgps_close
@@ -2588,6 +2669,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'gamxray'
    xtit = '$\Gamma$ (X-ray)'
+   xtex = '$\Gamma$'
    xran = [1,3.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -2733,9 +2815,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -2745,6 +2831,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'fsoftxray'
    xtit = 'log[F(0.5-2 keV)/erg s$\up-1$ cm$\up-2$]'
+   xtex = 'log[$F(0.5-2~{\rm keV})/{\rm erg~s}^{-1}~{\rm cm}^{-2}$]'
    xran = [-14,-10]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -2892,9 +2979,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -2904,6 +2995,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'fhardxray'
    xtit = 'log[F(2-10 keV)/erg s$\up-1$ cm$\up-2$]'
+   xtex = 'log[$F(2-10~{\rm keV})/{\rm erg~s}^{-1}~{\rm cm}^{-2}$]'
    xran = [-13.3,-9.8]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -3051,9 +3143,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3063,6 +3159,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lsoftxray'
    xtit = 'log[L(0.5-2 keV)/erg s$\up-1$]'
+   xtex = 'log[$L(0.5-2~{\rm keV})/{\rm erg~s}^{-1}$]'
    xran = [42,46]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -3209,9 +3306,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3221,6 +3322,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lhardxray'
    xtit = 'log[L(2-10 keV)/erg s$\up-1$]'
+   xtex = 'log[$L(2-10~{\rm keV})/{\rm erg~s}^{-1}$]'
    xran = [42.25,46.25]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -3367,9 +3469,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3378,6 +3484,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'ltotxray'
    xtit = 'log[L(0.5-10 keV)/erg s$\up-1$]'
+   xtex = 'log[$L(0.5-10~{\rm keV})/{\rm erg~s}^{-1}$]'
    xran = [42.5,46.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -3524,9 +3631,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3536,6 +3647,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lsoftratxray'
    xtit = 'L(0.5-2 keV) / L(0.5-10 keV)'
+   xtex = 'log[$L(0.5-2~{\rm keV})/L(0.5-10~{\rm keV})$]'
    xran = [-0.8d,0d]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -3682,9 +3794,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3693,6 +3809,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lxlbol'
    xtit = 'log[L(0.5-10 keV) / L$\downbol$]'
+   xtex = 'log[$L(0.5-10~{\rm keV})/L_{\rm BOL}$]'
    xran = [-3.3,-0.3]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -3839,9 +3956,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3861,6 +3982,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lbol'
    xtit = 'log(L$\downbol$/L$\sun$)'
+   xtex = 'log($L_{\rm BOL}/L_\sun$)'
    xran = [11.2,13.2]
 
    ylab = vlabs[vind]
@@ -3949,9 +4071,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -3961,6 +4087,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'luv'
    xtit = 'log[ $\lambda$L$\down\\lambda$ (1125 $\Angstrom$)/erg s$\up-1$]'
+   xtex = 'log[$\lambda L_{1125}/{\rm erg~s}^{-1}$]'
    xran = [42.5d,46.99d]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4045,9 +4172,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4056,6 +4187,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'alphaox'
    xtit = '$\alpha$$\downox$'
+   xtex = '$\alpha_{\rm OX}$
    xran = [-2.199,-1.101]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4140,9 +4272,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4151,6 +4287,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lirlbol'
    xtit = 'log(L$\downIR$/L$\downbol$)'
+   xtex = 'log($L_{\rm IR}/L_{\rm BOL}$)'
    xran = [-0.799,0.199]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4235,9 +4372,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4247,6 +4388,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lfirlbol'
    xtit = 'log(L$\downFIR$/L$\downbol$)'
+   xtex = 'log($L_{\rm FIR}/L_{\rm BOL}$)'
    xran = [-2,0]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4331,9 +4473,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4344,6 +4490,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'agnfrac'
    xtit = 'AGN fraction'
+   xtex = xtit
    xran = [0.65,1.02]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4433,9 +4580,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4444,6 +4595,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lagn'
    xtit = 'log(L$\downAGN$/L$\sun$)'
+   xtex = 'log($L_{\rm AGN}/L_\sun$)'
    xran = [11.301,12.799]
    
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4534,9 +4686,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4545,6 +4701,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lmbh'
    xtit = 'log(M$\downBH$/M$\sun$)'
+   xtex=  'log($M_{\rm BH}/M_\sun$)'
    xran = [6.501,9.499]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4635,9 +4792,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4647,6 +4808,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'leddrat'
    xtit = 'Eddington Ratio'
+   xtex = xtit
    xran = [-1.999,0.499]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4727,9 +4889,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    cgps_close
@@ -4738,6 +4904,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'nhxray'
    xtit = 'log[ N(H, X-ray) / cm$\up-2$]'
+   xtex = 'log[$N({\rm H})/{\rm cm}^{-2}$]'
    xran = [19.5d,24.5d]
 
    openw,tmplun,plotdir+ylab+'_vs_'+xlab+'_dat.txt',/get_lun
@@ -4818,39 +4985,53 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
       endif
    endfor
 
-   readcol,plotdir+ylab+'_vs_'+xlab+'_stat.txt',cc,pval,skip=1,/silent,$
-      format='(D,D)'
+   readcol,plotdir+ylab+'_vs_'+xlab+'_stat.txt',cc,pval,pvaldist,skip=1,/silent,$
+      format='(D,D,A)'
    ; translate pymcc results to LINMIX_ERR results
-   pval[0] = pval[1]
-   pval[1] = 0
+   pval[0] = double(pvaldist[0])
+   if pvaldist[1] eq 'True' then begin
+      pval[1] = 1b
+      pvalstr = 'p<'
+      pvallimstr = '$<$'
+   endif else begin
+      pval[1] = 0b
+      pvalstr = 'p='
+      pvallimstr = ''
+   endelse
    corr = dblarr(3)
    corr[0] = cc[1]
    corr[1] = cc[1]-cc[0]
    corr[2] = cc[2]-cc[1]
-   xloc = xran[0]+0.45*(xran[1]-xran[0])
+   xloc = xran[0]+0.35*(xran[1]-xran[0])
    yloc = yran[1] - 0.05*(yran[1]-yran[0])
-   lab = string('p=',pval[1],'  r=',cc[1],$
+   lab = string(pvalstr,pval[0],'  r=',corr[0],$
       format='(A0,D0.3,A0,D0.2)')+$
-      textoidl('_{-'+string(cc[1]-cc[0],format='(D0.2)')+'}^{+'+$
-      string(cc[2]-cc[1],format='(D0.2)')+'}')+$
+      textoidl('_{-'+string(corr[1],format='(D0.2)')+'}^{+'+$
+      string(corr[2],format='(D0.2)')+'}')+$
       string('  N=',n_elements(xdat),format='(A0,I0)')
    cgtext,xloc,yloc,lab,/dat,chars=1.25
 
    idet = where(cens eq 0b)
    indet = where(cens eq 1b)
-   cgpolygon,[0.25,0.5,0.5,0.25,0.25],[0.7,0.7,0.95,0.95,0.7],$
+   cgpolygon,[0.15,0.4,0.4,0.15,0.15],[0.7,0.7,0.95,0.95,0.7],$
       /fill,fcol='white',/norm
    cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
-      pos=[0.25,0.7,0.5,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      pos=[0.15,0.7,0.4,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
       xticks=1,yticks=1,xminor=1,yminor=1
    cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
+
 
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),$
+         amp,pvallimstr,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform_pvallim
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
-         n_elements(xdat),format=statform  
+         n_elements(xdat),format=statform
+      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pvallimstr,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform_pvallim
    endelse
 
    cgps_close
@@ -4862,6 +5043,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'gamxray'
    xtit = '$\Gamma$ (X-ray)'
+   xtex = '$\Gamma$'
    xran = [1,3.499]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -4983,9 +5165,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 
@@ -4993,6 +5179,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'fsoftxray'
    xtit = 'log[F(0.5-2 keV)/erg s$\up-1$ cm$\up-2$]'
+   xtex = 'log[$F(0.5-2~{\rm keV})/{\rm erg~s}^{-1}~{\rm cm}^{-2}$]'
    xran = [-13.99,-10.001]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5114,9 +5301,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 
@@ -5124,6 +5315,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'fhardxray'
    xtit = 'log[F(2-10 keV)/erg s$\up-1$ cm$\up-2$]'
+   xtex = 'log[$F(2-10~{\rm keV})/{\rm erg~s}^{-1}~{\rm cm}^{-2}$]'
    xran = [-13.3,-9.8]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5245,9 +5437,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 
@@ -5255,6 +5451,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lsoftxray'
    xtit = 'log[L(0.5-2 keV)/erg s$\up-1$]'
+   xtex = 'log[$L(0.5-2~{\rm keV})/{\rm erg~s}^{-1}$]'
    xran = [42,45.999]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5376,9 +5573,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 
@@ -5386,6 +5587,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lhardxray'
    xtit = 'log[L(2-10 keV)/erg s$\up-1$]'
+   xtex = 'log[$L(2-10~{\rm keV})/{\rm erg~s}^{-1}$]'
    xran = [42.25,46.25]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5507,15 +5709,20 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'ltotxray'
    xtit = 'log[L(0.5-10 keV)/erg s$\up-1$]'
+   xtex = 'log[$L(0.5-10~{\rm keV})/{\rm erg~s}^{-1}$]'
    xran = [42.5,46.5]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5637,9 +5844,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 
@@ -5647,6 +5858,7 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    xlab = 'lsoftratxray'
    xtit = 'L(0.5-2 keV) / L(0.5-10 keV)'
+   xtex = 'log[$L(0.5-2~{\rm keV})/L(0.5-10~{\rm keV})$]'
    xran = [-0.8d,0d]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5768,15 +5980,20 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    xlab = 'lxlbol'
    xtit = 'log[L(0.5-10 keV) / L$\downbol$]'
+   xtex = 'log[$L(0.5-10~{\rm keV})/L_{\rm BOL}$]'
    xran = [-3.3,-0.3]
 
    cgps_open,plotdir+ylab+'_vs_'+xlab+'.eps',/encap,/inches,xsiz=7.5,ysize=7.5,/nomatch,$
@@ -5898,9 +6115,13 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform  
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pval[0],amp,$
+         corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform
    endelse
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -6349,10 +6570,6 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 ; TABLES
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   amp = '&'
-   dslash = '\\'
-   ndat = '\nodata'
-   lineofdashes = strjoin(replicate('-',62))
 
 ;  Detection rates
 
@@ -6786,9 +7003,6 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    openw,lun_tmp,tabdir+'tab_fitresults.tex',/get_lun
    
-   lerr0 = '$_{-'
-   lerr1 = '}^{+'
-   lerr2 = '}$'
    for i=0,ncos-1 do begin
       
       labprint=0b
@@ -6880,7 +7094,8 @@ statform = '(A10,A10,D8.4,I2,3D6.2,I3)'
 
    free_lun,lun_tmp
 
-;  free up stats table
+;  free up stats tables
    free_lun,lun_stat
+   free_lun,lun_reg_tex
 
 end
