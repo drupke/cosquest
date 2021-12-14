@@ -5002,7 +5002,7 @@ bregtexform_pvallim = '(A20,A3,A11,A58,A1,A3,I3,A3,A3,D-5.3,A2,'+$
    corr[0] = cc[1]
    corr[1] = cc[1]-cc[0]
    corr[2] = cc[2]-cc[1]
-   xloc = xran[0]+0.35*(xran[1]-xran[0])
+   xloc = xran[0]+0.45*(xran[1]-xran[0])
    yloc = yran[1] - 0.05*(yran[1]-yran[0])
    lab = string(pvalstr,pval[0],'  r=',corr[0],$
       format='(A0,D0.3,A0,D0.2)')+$
@@ -5013,10 +5013,10 @@ bregtexform_pvallim = '(A20,A3,A11,A58,A1,A3,I3,A3,A3,D-5.3,A2,'+$
 
    idet = where(cens eq 0b)
    indet = where(cens eq 1b)
-   cgpolygon,[0.15,0.4,0.4,0.15,0.15],[0.7,0.7,0.95,0.95,0.7],$
+   cgpolygon,[0.25,0.5,0.5,0.25,0.25],[0.7,0.7,0.95,0.95,0.7],$
       /fill,fcol='white',/norm
    cgplot,xdat[idet],ydat[idet],psym=16,symsize=0.75,color='Black',/noerase,$
-      pos=[0.15,0.7,0.4,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
+      pos=[0.25,0.7,0.5,0.95],xran=xran,yran=yran,xtickf='(A1)',ytickf='(A1)',$
       xticks=1,yticks=1,xminor=1,yminor=1
    cgoplot,xdat[indet],ydat[indet],psym=9,symsize=0.75,color='Black'
 
@@ -5024,13 +5024,13 @@ bregtexform_pvallim = '(A20,A3,A11,A58,A1,A3,I3,A3,A3,D-5.3,A2,'+$
    if pval[0] lt tpval then begin
       printf,lun_stat,xlab.ToUpper(),ylab.ToUpper(),pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
-      printf,lun_reg_tex,tweq,amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),$
+      printf,lun_reg_tex,tvel[vind],amp,'\underline{ ',xtex,'}',amp,n_elements(xdat),$
          amp,pvallimstr,pval[0],amp,$
          corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=bregtexform_pvallim
    endif else begin
       printf,lun_stat,xlab,ylab,pval[0],pval[1],corr[0],corr[1],corr[2],$
          n_elements(xdat),format=statform
-      printf,lun_reg_tex,tweq,amp,xtex,amp,n_elements(xdat),amp,pvallimstr,pval[0],amp,$
+      printf,lun_reg_tex,tvel[vind],amp,xtex,amp,n_elements(xdat),amp,pvallimstr,pval[0],amp,$
          corr[0],lerr0,corr[1],lerr1,corr[2],lerr2,dslash,format=regtexform_pvallim
    endelse
 

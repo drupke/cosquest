@@ -1,15 +1,16 @@
 [![DOI](https://zenodo.org/badge/63365551.svg)](https://zenodo.org/badge/latestdoi/63365551)
 
--------------------------------------------------------------------------
-OVERVIEW
--------------------------------------------------------------------------
+## OVERVIEW
 
-Routines for paper on COS observations of PG quasars from QUEST
-sample: Veilleux et al. 2021, ApJ
+This package fits HST/COS data on the QUEST quasars, as described in
+[Veilleux et
+al. 2021](https://ui.adsabs.harvard.edu/abs/2021arXiv211200789V/abstract). It
+wraps the absorption-line fitter in
+[IFSFIT](https://github.com/drupke/ifsfit) to perform the fitting of
+NV and OVI ultraviolet lines. It also produces the plots that appear
+in this paper.
 
--------------------------------------------------------------------------
-REQUIREMENTS
--------------------------------------------------------------------------
+## REQUIREMENTS
 
 IDL v8.0 or higher (tested with v8.3)
 
@@ -22,20 +23,16 @@ IDL libraries:
 Note that the IDL Astronomy User's Library ships with some Coyote
 routines.
 
--------------------------------------------------------------------------
-QUESTIONS? BUGS? WANT TO MODIFY THE CODE?
--------------------------------------------------------------------------
+## QUESTIONS? BUGS? WANT TO MODIFY THE CODE?
 
 Feel free to contact David Rupke at drupke@gmail.com with questions,
 bug reports, etc.
 
 Modifications are encouraged, but subject to the license.
 
--------------------------------------------------------------------------
-LICENSE AND COPYRIGHT
--------------------------------------------------------------------------
+## LICENSE AND COPYRIGHT
 
-Copyright (C) 2013--2021 Anthony D. To, David S. N. Rupke
+Copyright (C) 2013--2021 David S. N. Rupke, Anthony D. To
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
