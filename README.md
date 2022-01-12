@@ -10,6 +10,9 @@ wraps the absorption-line fitter in
 NV and OVI ultraviolet lines. It also produces the plots that appear
 in this paper.
 
+There is one Python script, as well, that is used to perform
+regressions on xy data that is censored on both axes.
+
 ## REQUIREMENTS
 
 IDL v8.0 or higher (tested with v8.3)
